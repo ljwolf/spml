@@ -12,8 +12,8 @@ from collections import defaultdict
 from sklearn import linear_model, metrics
 from sklearn.base import clone
 
-from quadtree_regression import _Cell
-from kdtree_regression import (
+from ._spatial_index_utils import (
+    _Cell,
     _Node,
     _WeightedMedianSplitNode,
     _RandomSplitNode,

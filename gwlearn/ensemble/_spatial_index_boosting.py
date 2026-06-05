@@ -19,7 +19,7 @@ import numpy
 import pandas
 from collections import defaultdict
 
-from spatial_index_ensemble import (
+from ._spatial_index_ensemble import (
     SpatialIndexEnsemble,
     QuadtreeEnsemble,
     KDTreeEnsemble,

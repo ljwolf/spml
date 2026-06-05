@@ -15,7 +15,7 @@ from sklearn.ensemble import (
     RandomForestRegressor,
 )
 
-from .base import BaseClassifier, BaseRegressor
+from ..base import BaseClassifier, BaseRegressor
 
 
 class GWRandomForestClassifier(BaseClassifier):
