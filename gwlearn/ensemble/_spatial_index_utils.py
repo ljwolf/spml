@@ -74,7 +74,7 @@ class _Cell:
             self._score_function = score_function
             self._model = model
             self.model_ = None
-            self.prediction_ = numpy.ones_like(y) * numpy.nan
+            self.prediction_ = numpy.full(len(y), numpy.nan, dtype=float)
 
     @property
     def residuals_(self):
