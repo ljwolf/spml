@@ -40,8 +40,13 @@ class SpatialIndexEnsemble:
         Minimum improvement in score to accept a split.
     min_leaf_size : int (default: 10)
         Smallest allowed leaf.
-    max_depth : int (default: 10)
-        Maximum depth of the spatial index.
+    max_depth : int or None (default: None)
+        Maximum depth of the spatial index.  None leaves growth governed only by
+        `split_tolerance` and `min_leaf_size`.
+    max_leaves : int or float (default: ``inf``)
+        Cap on the total number of leaves.  ``inf`` leaves growth governed only by
+        `split_tolerance` and `min_leaf_size`.  When finite, the cap is a ceiling
+        enforced in the index's depth-first growth order.
     pbar : bool (default: True)
         Show a progress bar during fitting.
     bounds : array-like or None
@@ -55,7 +60,8 @@ class SpatialIndexEnsemble:
         score=None,
         split_tolerance=1e-5,
         min_leaf_size=10,
-        max_depth=10,
+        max_depth=None,
+        max_leaves=float("inf"),
         pbar=True,
         bounds=None,
     ):
@@ -69,6 +75,7 @@ class SpatialIndexEnsemble:
         self.split_tolerance = split_tolerance
         self.min_leaf_size = min_leaf_size
         self.max_depth = max_depth
+        self.max_leaves = max_leaves
         self.pbar = pbar
         self.bounds = bounds
 
@@ -92,7 +99,8 @@ class SpatialIndexEnsemble:
         """
         retained = []
         for split in self._candidate_splits(cell):
-            if split.depth > self.max_depth or split.size <= self.min_leaf_size:
+            if ((self.max_depth is not None and split.depth > self.max_depth)
+                    or split.size <= self.min_leaf_size):
                 self._update_leaf(cell)
                 continue
             parent_score = cell._score_function(
@@ -154,6 +162,13 @@ class SpatialIndexEnsemble:
         queue = [root]
         while queue:
             cell = queue.pop()
+            # `leaves_` holds finalized leaves; every cell still queued (plus the
+            # one in hand) becomes at least one more leaf, so this is the leaf
+            # count if growth stopped now.  Once it reaches the budget, stop
+            # expanding and finalize the rest in place.
+            if len(self.leaves_) + len(queue) + 1 >= self.max_leaves:
+                self._update_leaf(cell)
+                continue
             queue.extend(self._evaluate_splits(cell))
 
         if self.pbar:
