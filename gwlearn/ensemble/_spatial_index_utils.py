@@ -1,6 +1,6 @@
 import warnings, numpy, pandas
 from scipy import optimize
-from sklearn.base import clone
+from sklearn.base import clone, is_classifier
 
 class _Cell:
     
@@ -226,15 +226,29 @@ class _RandomSplitNode(_Node):
         return self._split_by_plane(plane, boost=boost)
 
 class _WeightedMedianSplitNode(_Node):
+    def _split_weights(self):
+        # regression: residual magnitude. classification: soft error
+        # 1 - P(true class), the probabilistic analogue of |y - y_hat|.
+        # |y - prediction_| would be the label-encoding distance, which is
+        # meaningless for non-binary or non-numeric labels.
+        if not is_classifier(self._model):
+            return numpy.abs(self.residuals_)
+        if self.model_ is None:
+            return numpy.ones(self.size)
+        proba = self.model_.predict_proba(self.X)
+        col = {c: j for j, c in enumerate(self.model_.classes_)}
+        idx = numpy.array([col[c] for c in self.y])
+        return 1 - proba[numpy.arange(self.size), idx]
+
     def split(self, boost=False):
             min_x, min_y, max_x, max_y = self.bounds
+            weights = self._split_weights()
             if abs(max_x - min_x)>abs(max_y-min_y):
-                # in classification, assigns even prediction misses to each half
                 # in regression, assigns even residuals to each half
-                mid_x = weighted_median(self.coordinates[:,0], weights=numpy.abs(self.residuals_))
+                mid_x = weighted_median(self.coordinates[:,0], weights=weights)
                 plane = [(mid_x, min_y), (mid_x, max_y)]
             else:
-                mid_y = weighted_median(self.coordinates[:,1], weights=numpy.abs(self.residuals_))
+                mid_y = weighted_median(self.coordinates[:,1], weights=weights)
                 plane = [(min_x, mid_y), (max_x, mid_y)]
             return self._split_by_plane(plane, boost=boost)
 
@@ -242,7 +256,6 @@ class _OptimalSplitNode(_Node):
     def split(self, boost=False, min_leaf_size=10):
         min_x, min_y, max_x, max_y = self.bounds
         if abs(max_x - min_x)>abs(max_y-min_y):
-            # in classification, assigns even prediction misses to each half
             # in regression, assigns even residuals to each half
             def objective(t):
                 plane = [(t, min_y), (t, max_y)]
