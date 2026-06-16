@@ -279,6 +279,8 @@ class _OptimalSplitNode(_Node):
         return self._split_by_plane(plane, boost=boost)
 
 def weighted_median(x, weights):
+    x = numpy.asarray(x).ravel()
+    weights = numpy.asarray(weights).ravel()
     df = pandas.DataFrame.from_dict(dict(data=x, weight=weights))
     df.sort_values("data", inplace=True)
     cutpoint = df.weight.sum() / 2
