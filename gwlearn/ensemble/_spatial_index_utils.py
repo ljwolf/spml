@@ -1,4 +1,5 @@
 import warnings, numpy, pandas
+from scipy import optimize
 from sklearn.base import clone
 
 class _Cell:
