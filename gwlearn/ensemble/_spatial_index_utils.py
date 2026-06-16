@@ -249,14 +249,14 @@ class _OptimalSplitNode(_Node):
                 left, right = self._split_by_plane(plane, boost=boost)
                 if (left.size < min_leaf_size) | (right.size < min_leaf_size):
                     return numpy.inf
-                return -(left.score_+right.score_)
+                return -(left.size*left.score_ + right.size*right.score_)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                mid_x = type(min_x)(optimize.minimize(
+                mid_x = type(min_x)(optimize.minimize_scalar(
                     objective,
-                    bounds=[(min_x, max_x)],
-                    x0=[weighted_median(self.coordinates[:,0], weights=numpy.abs(self.residuals_))]
-                    ).x.item()
+                    bounds=(min_x, max_x),
+                    method="bounded",
+                    ).x
                     )
 
             plane = [(mid_x, min_y), (mid_x, max_y)]
@@ -266,14 +266,14 @@ class _OptimalSplitNode(_Node):
                 left, right = self._split_by_plane(plane, boost=boost)
                 if (left.size < min_leaf_size) | (right.size < min_leaf_size):
                     return numpy.inf
-                return -(left.score_ + right.score_)
+                return -(left.size*left.score_ + right.size*right.score_)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                mid_y = type(min_x)(optimize.minimize(
+                mid_y = type(min_x)(optimize.minimize_scalar(
                     objective,
-                    bounds=[(min_y, max_y)],
-                    x0=[weighted_median(self.coordinates[:,1], weights=numpy.abs(self.residuals_))]
-                    ).x.item()
+                    bounds=(min_y, max_y),
+                    method="bounded",
+                    ).x
                     )
 
             plane = [(min_x, mid_y), (max_x, mid_y)]
