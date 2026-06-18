@@ -19,6 +19,7 @@ from ._spatial_index_utils import (
     _RandomSplitNode,
     _OptimalSplitNode,
 )
+from ._spatial_tree_ensemble import _leaf_split
 
 
 def _neg_mean_squared_error(y_true, y_pred):
@@ -52,6 +53,16 @@ class SpatialIndexEnsemble:
         Cap on the total number of leaves.  ``inf`` leaves growth governed only by
         `split_tolerance` and `min_leaf_size`.  When finite, the cap is a ceiling
         enforced in the index's depth-first growth order.
+    validation_fraction : float (default: 0.0)
+        Proportion of each child leaf held out to gate the split. With ``0.0``
+        the `split_tolerance` gate is in-sample (a child is scored on its own
+        training rows). With a value in ``(0.0, 1.0)`` the child's model is
+        refit on the remaining rows and the gate compares it against the parent
+        on the held-out rows, so the split must improve out-of-sample. The split
+        location is always chosen in-sample; this only changes accept/reject.
+        The leaf's stored model is always fit on the full leaf for prediction.
+    random_state : int, numpy.random.Generator or None (default: None)
+        Seeds the per-leaf holdout split when ``validation_fraction > 0``.
     pbar : bool (default: True)
         Show a progress bar during fitting.
     bounds : array-like or None
@@ -67,6 +78,8 @@ class SpatialIndexEnsemble:
         min_leaf_size=10,
         max_depth=None,
         max_leaves=float("inf"),
+        validation_fraction=0.0,
+        random_state=None,
         pbar=True,
         bounds=None,
     ):
@@ -80,6 +93,8 @@ class SpatialIndexEnsemble:
         self.min_leaf_size = min_leaf_size
         self.max_depth = max_depth
         self.max_leaves = max_leaves
+        self.validation_fraction = validation_fraction
+        self.random_state = random_state
         self.pbar = pbar
         self.bounds = bounds
 
@@ -95,6 +110,33 @@ class SpatialIndexEnsemble:
         self.levels_[cell.depth + 1].extend(splits)
         return splits
 
+    def _split_gain(self, cell, split):
+        """
+        Improvement of the child's local model over the parent on the gate set.
+
+        In-sample by default. When ``validation_fraction > 0`` the child model is
+        refit on a training slice and both models are scored on the held-out
+        slice, so the gain reflects out-of-sample improvement. Falls back to the
+        in-sample gate for leaves too small to spare a held-out row.
+        """
+        if self.validation_fraction > 0 and split.model_ is not None:
+            fit_pos, val_pos = _leaf_split(
+                numpy.arange(split.size), self.validation_fraction, self._rng
+            )
+            if val_pos is not None:
+                child = clone(split._model).fit(split.X[fit_pos], split.y[fit_pos])
+                child_score = split._score_function(
+                    split.y[val_pos], child.predict(split.X[val_pos])
+                )
+                parent_score = split._score_function(
+                    split.y[val_pos], cell.prediction_[split.parent_mask][val_pos]
+                )
+                return child_score - parent_score
+        parent_score = cell._score_function(
+            cell.y[split.parent_mask], cell.prediction_[split.parent_mask]
+        )
+        return split.score_ - parent_score
+
     def _evaluate_splits(self, cell):
         """
         Evaluate each candidate split. A split is retained when the child's
@@ -107,10 +149,7 @@ class SpatialIndexEnsemble:
                     or split.size <= self.min_leaf_size):
                 self._update_leaf(cell)
                 continue
-            parent_score = cell._score_function(
-                cell.y[split.parent_mask], cell.prediction_[split.parent_mask]
-            )
-            if split.score_ - parent_score >= self.split_tolerance:
+            if self._split_gain(cell, split) >= self.split_tolerance:
                 retained.append(split)
             else:
                 self._update_leaf(cell)
@@ -136,6 +175,7 @@ class SpatialIndexEnsemble:
             y = y.values.squeeze()
 
         coordinates = numpy.asarray(coordinates)
+        self._rng = numpy.random.default_rng(self.random_state)
 
         if self.bounds is None:
             self.bounds = [*numpy.min(coordinates, axis=0), *numpy.max(coordinates, axis=0)]

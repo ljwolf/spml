@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from gwlearn.ensemble import (
@@ -5,6 +6,8 @@ from gwlearn.ensemble import (
     GWGradientBoostingRegressor,
     GWRandomForestClassifier,
     GWRandomForestRegressor,
+    KDTreeEnsembleRegressor,
+    SpatialTreeRegressor,
 )
 
 
@@ -187,6 +190,45 @@ def test_gwrf_regressor_fit_basic(sample_regression_data):  # noqa: F811
     assert not hasattr(model, "aic_")
     assert not hasattr(model, "aicc_")
     assert not hasattr(model, "bic_")
+
+
+def test_kdtree_validation_fraction(sample_regression_data):  # noqa: F811
+    """validation_fraction=0 reproduces the default gate; >0 is no less conservative."""
+    X, y, geometry = sample_regression_data
+    coords = np.c_[geometry.x, geometry.y]
+
+    default = KDTreeEnsembleRegressor(min_leaf_size=5, pbar=False).fit(X, y, coords)
+    explicit_zero = KDTreeEnsembleRegressor(
+        min_leaf_size=5, pbar=False, validation_fraction=0.0
+    ).fit(X, y, coords)
+    held_out = KDTreeEnsembleRegressor(
+        min_leaf_size=5, pbar=False, validation_fraction=0.25, random_state=0
+    ).fit(X, y, coords)
+
+    # explicit 0.0 must be identical to the in-sample default
+    np.testing.assert_array_equal(default.labels_, explicit_zero.labels_)
+    # the out-of-sample gate can only ever reject more splits
+    assert held_out.n_leaves <= default.n_leaves
+
+
+def test_spatialtree_validation_fraction(sample_regression_data):  # noqa: F811
+    """validation_fraction=0 reproduces the default gate; >0 is no less conservative."""
+    from libpysal.graph import Graph
+
+    X, y, geometry = sample_regression_data
+    coords = np.c_[geometry.x, geometry.y]
+    graph = Graph.build_triangulation(geometry, kernel="identity")
+
+    default = SpatialTreeRegressor(graph=graph, min_leaf_size=5).fit(X, y, coords)
+    explicit_zero = SpatialTreeRegressor(
+        graph=graph, min_leaf_size=5, validation_fraction=0.0
+    ).fit(X, y, coords)
+    held_out = SpatialTreeRegressor(
+        graph=graph, min_leaf_size=5, validation_fraction=0.25, random_state=0
+    ).fit(X, y, coords)
+
+    np.testing.assert_array_equal(default.labels_, explicit_zero.labels_)
+    assert held_out.n_leaves <= default.n_leaves
 
 
 def test_gwgb_regressor_init():

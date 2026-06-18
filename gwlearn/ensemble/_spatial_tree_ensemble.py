@@ -271,6 +271,20 @@ def _find_cut(
     return best_deletion, base_total
 
 
+def _leaf_split(idx, fraction, rng):
+    """
+    Partition a region's row indices into ``(fit, val)`` for the split gate.
+
+    Returns ``(fit_idx, None)`` when the region is too small to spare a
+    held-out row, so the caller falls back to an in-sample gate for it.
+    """
+    n_val = int(round(len(idx) * fraction))
+    if n_val < 1 or n_val >= len(idx):
+        return idx, None
+    perm = rng.permutation(idx)
+    return perm[n_val:], perm[:n_val]
+
+
 def _make_cut(in_node, out_node, score, MSF):
     """Remove edge (in_node, out_node) from ``MSF`` in place; return components."""
     if not np.isfinite(score):
@@ -328,6 +342,16 @@ class SpatialTreeEnsemble(BaseEstimator):
         Stop growing past this depth. None grows until no cut is accepted.
     max_leaves : int or float (default inf)
         Cap on the number of regions.
+    validation_fraction : float (default 0.0)
+        Proportion of each child region held out to gate the split. With ``0.0``
+        the ``split_tolerance`` gate is in-sample (a child is scored on its own
+        training rows). With a value in ``(0.0, 1.0)`` each child's local model
+        is fit on the remaining rows and the gate compares it against the parent
+        on the held-out rows, so the split must improve out-of-sample. The cut is
+        always *proposed* in-sample; this only changes accept/reject. Accepted
+        regions are refit on their full support for prediction.
+    random_state : int, np.random.Generator or None (default None)
+        Seeds the per-region holdout split when ``validation_fraction > 0``.
     """
 
     def __init__(
@@ -338,6 +362,8 @@ class SpatialTreeEnsemble(BaseEstimator):
         min_leaf_size=10,
         max_depth=None,
         max_leaves=float("inf"),
+        validation_fraction=0.0,
+        random_state=None,
     ):
         self.graph = graph
         self.model = model
@@ -345,6 +371,8 @@ class SpatialTreeEnsemble(BaseEstimator):
         self.min_leaf_size = min_leaf_size
         self.max_depth = max_depth
         self.max_leaves = max_leaves
+        self.validation_fraction = validation_fraction
+        self.random_state = random_state
 
     # ---------------------------------------------------------------- hooks
     def _make_default_model(self):
@@ -370,6 +398,7 @@ class SpatialTreeEnsemble(BaseEstimator):
 
         model = clone(self.model) if self.model is not None else self._make_default_model()
         cut_kwargs = self._cut_kwargs(model, X, y)
+        rng = np.random.default_rng(self.random_state)
 
         MSF = cg.minimum_spanning_tree(_to_sparse(self.graph))
         MSF.eliminate_zeros()
@@ -402,17 +431,32 @@ class SpatialTreeEnsemble(BaseEstimator):
             A_idx, B_idx = _split_sides(MSF, labels, lbl, in_node, out_node)
             if len(A_idx) < self.min_leaf_size or len(B_idx) < self.min_leaf_size:
                 return
-            model_a = self._fit_page(clone(model), X[A_idx], y[A_idx])
-            model_b = self._fit_page(clone(model), X[B_idx], y[B_idx])
             parent_model = region_model[lbl]
-            gain_a = self._score(y[A_idx], model_a.predict(X[A_idx])) - self._score(
-                y[A_idx], parent_model.predict(X[A_idx])
-            )
-            gain_b = self._score(y[B_idx], model_b.predict(X[B_idx])) - self._score(
-                y[B_idx], parent_model.predict(X[B_idx])
-            )
+
+            def _evaluate(child_idx):
+                """Gain of the child's local model over the parent on the gate set."""
+                if self.validation_fraction > 0:
+                    fit_idx, val_idx = _leaf_split(
+                        child_idx, self.validation_fraction, rng
+                    )
+                else:
+                    fit_idx, val_idx = child_idx, None
+                gate_model = self._fit_page(clone(model), X[fit_idx], y[fit_idx])
+                score_idx = child_idx if val_idx is None else val_idx
+                gain = self._score(
+                    y[score_idx], gate_model.predict(X[score_idx])
+                ) - self._score(y[score_idx], parent_model.predict(X[score_idx]))
+                return gain, val_idx, gate_model
+
+            gain_a, a_val, model_a = _evaluate(A_idx)
+            gain_b, b_val, model_b = _evaluate(B_idx)
             if max(gain_a, gain_b) < self.split_tolerance:
                 return
+            # the gate fit on a subset; refit accepted regions on full support
+            if a_val is not None:
+                model_a = self._fit_page(clone(model), X[A_idx], y[A_idx])
+            if b_val is not None:
+                model_b = self._fit_page(clone(model), X[B_idx], y[B_idx])
             cand[lbl] = (base_total - cut.score, cut, A_idx, B_idx, model_a, model_b)
 
         consider(0)
