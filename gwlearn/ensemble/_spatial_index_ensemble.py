@@ -21,6 +21,11 @@ from ._spatial_index_utils import (
 )
 
 
+def _neg_mean_squared_error(y_true, y_pred):
+    """Default split score. Module-level (not a closure) so fitted ensembles pickle."""
+    return -metrics.mean_squared_error(y_true, y_pred)
+
+
 class SpatialIndexEnsemble:
     """
     Base class for spatial ensemble models.
@@ -69,8 +74,7 @@ class SpatialIndexEnsemble:
             model = linear_model.LinearRegression()
         self.model = model
         if score is None:
-            def score(y_true, y_pred):
-                return -metrics.mean_squared_error(y_true, y_pred)
+            score = _neg_mean_squared_error
         self._score_function = score
         self.split_tolerance = split_tolerance
         self.min_leaf_size = min_leaf_size

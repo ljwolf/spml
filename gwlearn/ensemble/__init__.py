@@ -10,6 +10,7 @@ from ._spatial_index_ensemble import(
     KDTreeEnsembleClassifier,
     KDTreeEnsembleRegressor
 )
+from ..transform import ExternalTreeTransformer
 from ._spatial_tree_ensemble import SpatialTreeClassifier, SpatialTreeRegressor
 from ._spatial_index_boosting import (
     QuadtreeBoostingClassifier,
