@@ -143,12 +143,23 @@ class SpatialIndexEnsemble:
         local model improves on the parent's predictions over the same subset
         by at least split_tolerance.
         """
+        splits = self._candidate_splits(cell)
+        # A split is admissible only if *every* child clears the depth and size
+        # floors. Evaluating children independently let a degenerate split peel
+        # a sub-floor sliver off one side and retain the almost-full other
+        # child, so the support never shrank and depth ran away (a near-perfect
+        # leaf model at split_tolerance=0 drives the weighted median onto the
+        # boundary, peeling one point per level). Rejecting the whole split
+        # bounds depth and matches min_samples_leaf semantics.
+        if any(
+            (self.max_depth is not None and split.depth > self.max_depth)
+            or split.size <= self.min_leaf_size
+            for split in splits
+        ):
+            self._update_leaf(cell)
+            return []
         retained = []
-        for split in self._candidate_splits(cell):
-            if ((self.max_depth is not None and split.depth > self.max_depth)
-                    or split.size <= self.min_leaf_size):
-                self._update_leaf(cell)
-                continue
+        for split in splits:
             if self._split_gain(cell, split) >= self.split_tolerance:
                 retained.append(split)
             else:
