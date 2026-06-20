@@ -142,24 +142,20 @@ class SpatialIndexEnsemble:
         Evaluate each candidate split. A split is retained when the child's
         local model improves on the parent's predictions over the same subset
         by at least split_tolerance.
+
+        Children below the depth/size floor are not expanded; the parent stays
+        as a space-covering fallback leaf so those points are still predicted.
+        This per-child rule is correct for geometric (quadtree) subdivision,
+        where sparse quadrants are legitimate small leaves. Binary KD-tree
+        splits need the stricter both-children rule (see KDTreeEnsemble) to
+        avoid a degenerate plane peeling one point per level.
         """
-        splits = self._candidate_splits(cell)
-        # A split is admissible only if *every* child clears the depth and size
-        # floors. Evaluating children independently let a degenerate split peel
-        # a sub-floor sliver off one side and retain the almost-full other
-        # child, so the support never shrank and depth ran away (a near-perfect
-        # leaf model at split_tolerance=0 drives the weighted median onto the
-        # boundary, peeling one point per level). Rejecting the whole split
-        # bounds depth and matches min_samples_leaf semantics.
-        if any(
-            (self.max_depth is not None and split.depth > self.max_depth)
-            or split.size <= self.min_leaf_size
-            for split in splits
-        ):
-            self._update_leaf(cell)
-            return []
         retained = []
-        for split in splits:
+        for split in self._candidate_splits(cell):
+            if ((self.max_depth is not None and split.depth > self.max_depth)
+                    or split.size <= self.min_leaf_size):
+                self._update_leaf(cell)
+                continue
             if self._split_gain(cell, split) >= self.split_tolerance:
                 retained.append(split)
             else:
@@ -365,6 +361,33 @@ class KDTreeEnsemble(SpatialIndexEnsemble):
             splits = cell.split()
         self.levels_[cell.depth + 1].extend(splits)
         return splits
+
+    def _evaluate_splits(self, cell):
+        """
+        A binary KD-tree split is admissible only if *both* children clear the
+        depth and size floors. Evaluating children independently let a
+        degenerate split (e.g. a residual-weighted median driven onto the
+        boundary when residuals vanish) peel a sub-floor sliver off one side
+        and retain the almost-full other child, so the support shrank by one
+        point per level and depth ran away until the base-10 path-code index
+        overflowed float64. Rejecting the whole split bounds depth and matches
+        min_samples_leaf semantics.
+        """
+        splits = self._candidate_splits(cell)
+        if any(
+            (self.max_depth is not None and split.depth > self.max_depth)
+            or split.size <= self.min_leaf_size
+            for split in splits
+        ):
+            self._update_leaf(cell)
+            return []
+        retained = []
+        for split in splits:
+            if self._split_gain(cell, split) >= self.split_tolerance:
+                retained.append(split)
+            else:
+                self._update_leaf(cell)
+        return retained
 
 
 # ---------------------------------------------------------------------------
