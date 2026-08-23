@@ -312,6 +312,18 @@ def test_k_cross_sampling(line_gdf, donor_gdf):
     assert set(boot["value"]).issubset(set(donor_gdf["value"]))
 
 
+def test_k1_cross_sampling(line_gdf, donor_gdf):
+    """k=1 with donor: cKDTree.query squeezes the trailing axis at k=1 --
+    every X row must draw its single nearest donor deterministically."""
+    boot = next(
+        LocalBootstrap(k=1, n_bootstraps=1, random_state=0)
+        .sample(line_gdf, donor=donor_gdf)
+    )
+    assert isinstance(boot, geopandas.GeoDataFrame)
+    numpy.testing.assert_array_equal(boot.index, line_gdf.index)
+    assert set(boot["value"]).issubset(set(donor_gdf["value"]))
+
+
 def test_bandwidth_k_both_raises(line_gdf):
     with pytest.raises(ValueError, match="mutually exclusive"):
         LocalBootstrap(bandwidth=1.0, k=3)
@@ -323,6 +335,32 @@ def test_cross_reproducible(line_gdf, donor_gdf):
     for a, b in zip(b1, b2):
         numpy.testing.assert_array_equal(a.index, b.index)
         numpy.testing.assert_array_equal(a["value"].values, b["value"].values)
+
+
+# -- coplanar --------------------------------------------------------------------
+
+def test_k_coplanar_raise_by_default():
+    """Duplicate-location points with k= raise a CoplanarError by default."""
+    from libpysal.graph._utils import CoplanarError
+
+    gdf = geopandas.GeoDataFrame(
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 0), Point(5, 0)]
+    )
+    with pytest.raises(CoplanarError):
+        list(LocalBootstrap(k=1, n_bootstraps=1, random_state=0).sample(gdf))
+
+
+def test_k_coplanar_jitter_avoids_error():
+    """coplanar='jitter' resolves duplicate locations instead of raising."""
+    gdf = geopandas.GeoDataFrame(
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 0), Point(5, 0)]
+    )
+    boots = list(
+        LocalBootstrap(
+            k=1, n_bootstraps=1, coplanar="jitter", random_state=0
+        ).sample(gdf)
+    )
+    assert boots[0].shape == (4,)
 
 
 # -- sklearn API ---------------------------------------------------------------
