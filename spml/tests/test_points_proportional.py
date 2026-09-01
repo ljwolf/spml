@@ -1,12 +1,14 @@
-import pytest
 import geopandas
-from shapely.geometry import box, LineString
+import pytest
+from shapely.geometry import LineString, box
 
 from spml.validation import StratifiedClassSampler
 
 
 def test_total_count(class_gdf):
-    pts = StratifiedClassSampler(n_samples=100).sample(class_gdf.geometry, class_gdf["class"])
+    pts = StratifiedClassSampler(n_samples=100).sample(
+        class_gdf.geometry, class_gdf["class"]
+    )
     assert len(pts) == 100
 
 
@@ -32,15 +34,16 @@ def test_value_weighted_equal_split(class_gdf):
 def test_no_weights_is_uniform_not_row_count():
     """Without weights the sampler falls back to uniform random sampling.
 
-    Class A: 1 large polygon (area 9).  Class B: 9 small polygons (area 1 each, total 9).
+    Class A: 1 large polygon (area 9). Class B: 9 small polygons (area 1 each, total 9).
     Row-count weighting would give A=10 %, B=90 %.
     Uniform spatial sampling gives A≈50 %, B≈50 % because the areas are equal.
     """
-    gdf = geopandas.GeoDataFrame({
-        "class": ["A"] + ["B"] * 9,
-        "geometry": [box(0, 0, 9, 1)]
-                  + [box(i, 1, i + 1, 2) for i in range(9)],
-    })
+    gdf = geopandas.GeoDataFrame(
+        {
+            "class": ["A"] + ["B"] * 9,
+            "geometry": [box(0, 0, 9, 1)] + [box(i, 1, i + 1, 2) for i in range(9)],
+        }
+    )
     pts = StratifiedClassSampler(n_samples=2000, random_state=0).sample(
         gdf.geometry, gdf["class"]
     )
@@ -81,11 +84,13 @@ def test_weights_as_numpy_array(class_gdf):
 
 
 def test_line_geodataframe():
-    gdf = geopandas.GeoDataFrame({
-        "class":  ["A", "B"],
-        "length": [6.0, 4.0],
-        "geometry": [LineString([(0, 0), (6, 0)]), LineString([(0, 1), (4, 1)])],
-    })
+    gdf = geopandas.GeoDataFrame(
+        {
+            "class": ["A", "B"],
+            "length": [6.0, 4.0],
+            "geometry": [LineString([(0, 0), (6, 0)]), LineString([(0, 1), (4, 1)])],
+        }
+    )
     pts = StratifiedClassSampler(n_samples=100).sample(
         gdf.geometry, gdf["class"], gdf["length"]
     )
