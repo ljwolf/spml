@@ -19,24 +19,32 @@ surface determines E[N].
 
 from __future__ import annotations
 
-import numpy
-import geopandas
+import geopandas as gpd
+import numpy as np
 import shapely
 
 from ._base import BasePointSampler
+from ._utils import _collect_geometries
 
 
 class PoissonSampler(BasePointSampler):
-    """
-    Inhomogeneous Poisson point process sampler.
+    r"""Inhomogeneous Poisson point process sampler.
 
-    The number of returned points is random -- N ~ Poisson(∫∫_W λ(x,y) dA).
-    Set *n_expected* to control the expected count; the sampler computes the
-    normalisation constant K = ∫∫_W λ dA internally and derives
-    scale = n_expected / K.  When *n_expected* is None the raw integral of
-    the intensity surface sets E[N].
+    The number of returned points is random:
 
-    Four ways to specify the intensity surface λ(x,y) are accepted by
+    .. math::
+
+        N \sim \operatorname{Poisson}\left(
+            \iint_W \lambda(x, y)\,\mathrm{d}A
+        \right).
+
+    Set ``n_expected`` to control the expected count; the sampler computes the
+    normalisation constant :math:`K = \iint_W \lambda\,\mathrm{d}A` internally
+    and derives :math:`\mathrm{scale} = n_{\mathrm{expected}} / K`. When
+    ``n_expected`` is ``None``, the raw integral of the intensity surface sets
+    :math:`\operatorname{E}[N]`.
+
+    Four ways to specify the intensity surface :math:`\lambda(x, y)` are accepted by
     :meth:`sample`:
 
     * **callable** ``f(x, y) -> array`` -- intensity in points per unit area.
@@ -57,21 +65,24 @@ class PoissonSampler(BasePointSampler):
     ----------
     n_expected : float or None
         Expected number of points per call to :meth:`sample`.  Internally
-        converted to a scale factor via scale = n_expected / K, where K is
-        the normalisation constant of the intensity surface.  When None the
-        raw integral K sets E[N].
+        converted to a scale factor via
+        :math:`\mathrm{scale} = n_{\mathrm{expected}} / K`, where :math:`K` is
+        the normalisation constant of the intensity surface. When ``None``, the
+        raw integral :math:`K` sets :math:`\operatorname{E}[N]`.
     bandwidth : float or None
         Kernel bandwidth for KDE mode, in the same units as the CRS.
         ``None`` applies Scott's rule.
     kernel : str
         Kernel for KDE mode.  Passed to
-        ``sklearn.neighbors.KernelDensity``; typical values are
+        :class:`sklearn.neighbors.KernelDensity`; typical values are
         ``'gaussian'`` (default), ``'tophat'``, ``'epanechnikov'``.
     interpolation : {'nearest', 'linear'}
         Pixel-interpolation strategy for raster input.
         ``'nearest'`` uses the pixel-selection algorithm (fast).
         ``'linear'`` uses bilinear interpolation + Lewis-Shedler thinning.
-    random_state : int or None
+    random_state : int, RandomState instance, or None
+        Seed / random state passed to ``sklearn.utils.check_random_state``.
+        TODO: all random_state docstrings across spml shoud say the same
     """
 
     def __init__(
@@ -92,13 +103,13 @@ class PoissonSampler(BasePointSampler):
 
     def sample(self, geometry, intensity):  # ty:ignore[invalid-method-override]
         """
-        Generate an inhomogeneous Poisson point pattern inside *geometry*.
+        Generate an inhomogeneous Poisson point pattern inside ``geometry``.
 
         Parameters
         ----------
         geometry : shapely.Geometry | GeoSeries | GeoDataFrame | None
             Sampling window.  CRS is inferred automatically from GeoSeries /
-            GeoDataFrame input.  Pass ``None`` when *intensity* is a
+            GeoDataFrame input.  Pass ``None`` when ``intensity`` is a
             rasterio DatasetReader -- the window and CRS are then taken
             directly from the raster.
         intensity : callable | DatasetReader | ndarray (2-D) | array-like (1-D) | GeoSeries | ndarray (N, 2)
@@ -120,8 +131,8 @@ class PoissonSampler(BasePointSampler):
         -------
         geopandas.GeoDataFrame
             Column: ``geometry`` (Point objects).
-        """
-        rng = numpy.random.default_rng(self.random_state)
+        """  # noqa: E501
+        rng = np.random.default_rng(self.random_state)
         crs = None
 
         # -- resolve sampling window ----------------------------------------
@@ -131,6 +142,7 @@ class PoissonSampler(BasePointSampler):
             try:
                 import rasterio as _rio
                 from shapely.geometry import box as _box
+
                 if not isinstance(intensity, _rio.DatasetReader):
                     raise ValueError(
                         "geometry=None is only supported when intensity is a "
@@ -138,22 +150,22 @@ class PoissonSampler(BasePointSampler):
                     )
                 crs = intensity.crs.to_string() if intensity.crs else None
                 window = _box(*intensity.bounds)
-            except ImportError:
+            except ImportError as e:
                 raise ValueError(
                     "geometry=None requires rasterio to be installed."
-                )
-        elif isinstance(geometry, (geopandas.GeoDataFrame, geopandas.GeoSeries)):
+                ) from e
+        elif isinstance(geometry, (gpd.GeoDataFrame, gpd.GeoSeries)):
             crs = geometry.crs
-            window = geometry.union_all()
+            window = _collect_geometries(geometry.to_numpy())
             if window.area == 0:
                 window = window.convex_hull
         else:
             window = geometry
 
         # -- detect polygon-geometry case -----------------------------------
-        if isinstance(geometry, geopandas.GeoDataFrame):
+        if isinstance(geometry, gpd.GeoDataFrame):
             geo_geoms = geometry.geometry
-        elif isinstance(geometry, geopandas.GeoSeries):
+        elif isinstance(geometry, gpd.GeoSeries):
             geo_geoms = geometry
         else:
             geo_geoms = None
@@ -175,16 +187,16 @@ class PoissonSampler(BasePointSampler):
             is_poly_geometry
             and not callable(intensity)
             and not _is_ds
-            and not isinstance(intensity, (geopandas.GeoDataFrame, geopandas.GeoSeries))
+            and not isinstance(intensity, (gpd.GeoDataFrame, gpd.GeoSeries))
         ):
-            values = numpy.asarray(intensity, dtype=float)
+            values = np.asarray(intensity, dtype=float)
             coords = self._from_polygons(window, geo_geoms, values, rng)
         elif callable(intensity):
             coords = self._thinning(window, intensity, rng)
         elif _is_ds:
             coords = self._from_raster_ds(window, intensity, rng)
         elif (
-            isinstance(intensity, numpy.ndarray)
+            isinstance(intensity, np.ndarray)
             and intensity.ndim == 2
             and intensity.shape[1] != 2
         ):
@@ -195,6 +207,7 @@ class PoissonSampler(BasePointSampler):
         if len(coords) == 0:
             if self.n_expected:
                 import warnings
+
                 warnings.warn(
                     "PoissonSampler returned no points despite n_expected="
                     f"{self.n_expected}. The intensity surface is zero or "
@@ -202,12 +215,10 @@ class PoissonSampler(BasePointSampler):
                     UserWarning,
                     stacklevel=2,
                 )
-            pts = geopandas.GeoSeries([], dtype="geometry", crs=crs)
+            pts = gpd.GeoSeries([], dtype="geometry", crs=crs)
         else:
-            pts = geopandas.GeoSeries(
-                geopandas.points_from_xy(coords[:, 0], coords[:, 1]), crs=crs
-            )
-        return geopandas.GeoDataFrame({"geometry": pts})
+            pts = gpd.GeoSeries(gpd.points_from_xy(coords[:, 0], coords[:, 1]), crs=crs)
+        return gpd.GeoDataFrame({"geometry": pts})
 
     # -- scale helper ----------------------------------------------------------
 
@@ -228,11 +239,11 @@ class PoissonSampler(BasePointSampler):
         bbox_area = (maxx - minx) * (maxy - miny)
 
         g = 64
-        gx = numpy.linspace(minx, maxx, g)
-        gy = numpy.linspace(miny, maxy, g)
-        XX, YY = numpy.meshgrid(gx, gy)
-        Z = numpy.asarray(fn(XX.ravel(), YY.ravel()), dtype=float)
-        Z = numpy.where(numpy.isfinite(Z) & (Z > 0.0), Z, 0.0)
+        gx = np.linspace(minx, maxx, g)
+        gy = np.linspace(miny, maxy, g)
+        XX, YY = np.meshgrid(gx, gy)
+        Z = np.asarray(fn(XX.ravel(), YY.ravel()), dtype=float)
+        Z = np.where(np.isfinite(Z) & (Z > 0.0), Z, 0.0)
 
         K = float(Z.mean()) * bbox_area
         scale = self._effective_scale(K)
@@ -248,13 +259,13 @@ class PoissonSampler(BasePointSampler):
         xs = rng.uniform(minx, maxx, N)
         ys = rng.uniform(miny, maxy, N)
 
-        lam = numpy.asarray(fn(xs, ys), dtype=float) * scale
-        lam = numpy.where(numpy.isfinite(lam), numpy.maximum(lam, 0.0), 0.0)
+        lam = np.asarray(fn(xs, ys), dtype=float) * scale
+        lam = np.where(np.isfinite(lam), np.maximum(lam, 0.0), 0.0)
         keep = rng.random(N) < (lam / lambda_max)
         xs, ys = xs[keep], ys[keep]
 
         inside = shapely.contains(window, shapely.points(xs, ys))
-        return numpy.vstack((xs[inside], ys[inside])).T
+        return np.vstack((xs[inside], ys[inside])).T
 
     # -- raster input ----------------------------------------------------------
 
@@ -263,8 +274,8 @@ class PoissonSampler(BasePointSampler):
 
         geom_json = [window.__geo_interface__]
         out, transform = rio_mask(ds, geom_json, crop=True, filled=False)
-        arr = numpy.ma.filled(out[0], fill_value=0).astype(float)
-        arr = numpy.maximum(arr, 0.0)
+        arr = np.ma.filled(out[0], fill_value=0).astype(float)
+        arr = np.maximum(arr, 0.0)
 
         if self.interpolation == "linear":
             return self._bilinear_thinning(window, arr, transform, rng)
@@ -275,7 +286,7 @@ class PoissonSampler(BasePointSampler):
 
         minx, miny, maxx, maxy = window.bounds
         transform = from_bounds(minx, miny, maxx, maxy, arr.shape[1], arr.shape[0])
-        arr = numpy.maximum(arr.astype(float), 0.0)
+        arr = np.maximum(arr.astype(float), 0.0)
 
         if self.interpolation == "linear":
             return self._bilinear_thinning(window, arr, transform, rng)
@@ -290,9 +301,9 @@ class PoissonSampler(BasePointSampler):
         Matches the spatstat modern algorithm (spatstat >= 1.42-3).
         """
         nrows, ncols = arr.shape
-        col_c = transform.c + (numpy.arange(ncols) + 0.5) * transform.a
-        row_c = transform.f + (numpy.arange(nrows) + 0.5) * transform.e
-        CX, CY = numpy.meshgrid(col_c, row_c)
+        col_c = transform.c + (np.arange(ncols) + 0.5) * transform.a
+        row_c = transform.f + (np.arange(nrows) + 0.5) * transform.e
+        CX, CY = np.meshgrid(col_c, row_c)
 
         flat_pts = shapely.points(CX.ravel(), CY.ravel())
         in_win = shapely.covers(window, flat_pts)
@@ -314,21 +325,21 @@ class PoissonSampler(BasePointSampler):
 
         probs = flat_int / flat_int.sum()
         px_idx = rng.choice(len(probs), size=N, p=probs)
-        rows_s, cols_s = numpy.unravel_index(px_idx, arr.shape)
+        rows_s, cols_s = np.unravel_index(px_idx, arr.shape)
 
         xs = transform.c + (cols_s + rng.random(N)) * transform.a
         ys = transform.f + (rows_s + rng.random(N)) * transform.e
 
         inside = shapely.covers(window, shapely.points(xs, ys))
-        return numpy.vstack((xs[inside], ys[inside])).T
+        return np.vstack((xs[inside], ys[inside])).T
 
     def _bilinear_thinning(self, window, arr, transform, rng):
         """Bilinear RegularGridInterpolator over pixel grid -> Lewis-Shedler."""
         from scipy.interpolate import RegularGridInterpolator
 
         nrows, ncols = arr.shape
-        xs_grid = transform.c + (numpy.arange(ncols) + 0.5) * transform.a
-        ys_grid = transform.f + (numpy.arange(nrows) + 0.5) * transform.e
+        xs_grid = transform.c + (np.arange(ncols) + 0.5) * transform.a
+        ys_grid = transform.f + (np.arange(nrows) + 0.5) * transform.e
 
         if transform.e < 0:  # north-up raster (most common)
             ys_grid = ys_grid[::-1]
@@ -343,24 +354,22 @@ class PoissonSampler(BasePointSampler):
         )
 
         def fn(x, y):
-            return numpy.maximum(interp(numpy.column_stack([y, x])), 0.0)
+            return np.maximum(interp(np.column_stack([y, x])), 0.0)
 
         return self._thinning(window, fn, rng)
 
     # -- polygon intensity -----------------------------------------------------
 
-    def _from_polygons(
-        self, window, geoms: geopandas.GeoSeries, values: numpy.ndarray, rng
-    ):
+    def _from_polygons(self, window, geoms: gpd.GeoSeries, values: np.ndarray, rng):
         """Rasterize polygon geometries with per-feature values, then sample."""
         try:
             from rasterio.features import rasterize
             from rasterio.transform import from_bounds
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "rasterio is required to use polygon intensity. "
                 "Install it with: pip install rasterio"
-            )
+            ) from e
 
         minx, miny, maxx, maxy = window.bounds
         w, h = maxx - minx, maxy - miny
@@ -376,8 +385,8 @@ class PoissonSampler(BasePointSampler):
         transform = from_bounds(minx, miny, maxx, maxy, ncols, nrows)
         shapes = (
             (geom, float(val))
-            for geom, val in zip(geoms, values)
-            if geom is not None and not geom.is_empty and numpy.isfinite(val)
+            for geom, val in zip(geoms, values, strict=True)
+            if geom is not None and not geom.is_empty and np.isfinite(val)
         )
         arr = rasterize(
             shapes,
@@ -394,12 +403,12 @@ class PoissonSampler(BasePointSampler):
         """Fit a 2-D kernel-density estimate, use it as the process intensity."""
         from sklearn.neighbors import KernelDensity
 
-        if isinstance(points, geopandas.GeoDataFrame):
+        if isinstance(points, gpd.GeoDataFrame):
             points = points.geometry
-        if isinstance(points, geopandas.GeoSeries):
-            xy = numpy.column_stack([points.x, points.y])
-        elif isinstance(points, numpy.ndarray):
-            xy = numpy.atleast_2d(points)
+        if isinstance(points, gpd.GeoSeries):
+            xy = points.get_coordinates().to_numpy()
+        elif isinstance(points, np.ndarray):
+            xy = np.atleast_2d(points)
             if xy.ndim != 2 or xy.shape[1] != 2:
                 raise ValueError(
                     "For KDE mode pass an (N, 2) array of [x, y] coordinates."
@@ -407,7 +416,8 @@ class PoissonSampler(BasePointSampler):
         else:
             raise TypeError(
                 f"Cannot interpret intensity of type {type(points).__name__!r} "
-                "as a point pattern; expected GeoSeries, GeoDataFrame, or (N,2) ndarray."
+                "as a point pattern; expected GeoSeries, GeoDataFrame, or "
+                "(N,2) ndarray."
             )
 
         n_obs = len(xy)
@@ -416,15 +426,15 @@ class PoissonSampler(BasePointSampler):
 
         bw = self.bandwidth
         if bw is None:
-            std = numpy.std(xy, axis=0)
-            bw = float(n_obs ** (-1.0 / 6.0) * numpy.sqrt(max(std[0] * std[1], 1e-12)))
+            std = np.std(xy, axis=0)
+            bw = float(n_obs ** (-1.0 / 6.0) * np.sqrt(max(std[0] * std[1], 1e-12)))
 
         kde = KernelDensity(bandwidth=bw, kernel=self.kernel)
         kde.fit(xy)
 
         # fn integrates to n_obs over all space (KDE integrates to 1)
         def fn(x, y):
-            log_dens = kde.score_samples(numpy.column_stack([x, y]))
-            return numpy.exp(log_dens) * n_obs
+            log_dens = kde.score_samples(np.column_stack([x, y]))
+            return np.exp(log_dens) * n_obs
 
         return self._thinning(window, fn, rng)

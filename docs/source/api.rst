@@ -65,6 +65,9 @@ Validation
 Spatial cross-validation splitters, point samplers, and range-finding
 utilities for validating spatial models.
 
+Cross-validation splitters
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 .. currentmodule:: spml.validation
 .. autosummary::
    :toctree: generated/
@@ -78,10 +81,27 @@ utilities for validating spatial models.
    LeaveClusterOut
    LocalBootstrap
    LocalPermutation
-   correlogram_range
-   knn_range
+
+
+Point samplers
+~~~~~~~~~~~~~~
+
+.. currentmodule:: spml.validation
+.. autosummary::
+   :toctree: generated/
+
    PointSampler
    ConstantClassSampler
    StratifiedClassSampler
    MultinomialSampler
    PoissonSampler
+
+Range finders
+~~~~~~~~~~~~~
+
+.. currentmodule:: spml.validation
+.. autosummary::
+   :toctree: generated/
+
+   correlogram_range
+   knn_range
