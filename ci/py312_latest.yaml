@@ -10,6 +10,9 @@ dependencies:
   - scipy
   - scikit-learn
   - joblib
+  # optional
+  - h3-py
+  - rasterio
   # testing
   - geodatasets
   - mgwr

@@ -11,6 +11,9 @@ dependencies:
   - scipy=1.14.0
   - scikit-learn=1.5.0
   - pandas=2.3.0
+  # optional
+  - h3-py
+  - rasterio
   # testing
   - geodatasets
   - mgwr
