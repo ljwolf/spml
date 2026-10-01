@@ -70,10 +70,25 @@ class HilbertKFold(BaseCrossValidator):
 
     Examples
     --------
-    >>> skf = HilbertKFold(n_splits=5, random_state=0)
-    >>> for train_idx, test_idx in skf.split(gdf):
-    ...     model.fit(X[train_idx], y[train_idx])
-    ...     score = model.score(X[test_idx], y[test_idx])
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
+    >>> from spml.validation import HilbertKFold
+
+    >>> gdf = gpd.read_file(get_path('geoda.hickory2'))
+    >>> hkf = HilbertKFold(n_splits=3, random_state=0)
+    >>> for i, (train_index, test_index) in enumerate(hkf.split(gdf)):
+    ...     print(f"Fold {i}:")
+    ...     print(f"  Train: index={train_index}")
+    ...     print(f"  Test:  index={test_index}")
+    Fold 0:
+      Train: index=[ 1  2  3  4  5  6  8 11 13 14 15 16 18 21 22 23 24 27 28]
+      Test:  index=[ 0  7  9 10 12 17 19 20 25 26]
+    Fold 1:
+      Train: index=[ 0  2  4  7  8  9 10 11 12 15 17 18 19 20 22 23 25 26 27]
+      Test:  index=[ 1  3  5  6 13 14 16 21 24 28]
+    Fold 2:
+      Train: index=[ 0  1  3  5  6  7  9 10 12 13 14 16 17 19 20 21 24 25 26 28]
+      Test:  index=[ 2  4  8 11 15 18 22 23 27]
     """
 
     def __init__(self, n_splits: int = 5, level: int = 16, random_state=None):

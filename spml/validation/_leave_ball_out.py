@@ -42,11 +42,36 @@ class LeaveBallOut(BaseCrossValidator):
 
     Examples
     --------
-    >>> lbo = LeaveBallOut(radius=2000)
-    >>> for train_idx, test_idx in lbo.split(gdf):
-    ...     model.fit(X[train_idx], y[train_idx])
-    ...     score = model.score(X[test_idx], y[test_idx])
-    """
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
+    >>> from spml.validation import LeaveBallOut
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc'))
+    >>> lbo = LeaveBallOut(radius=50000)
+    >>> for i, (train_index, test_index) in zip(range(5), (lbo.split(gdf))):
+    ...     print(f"Fold {i}:")
+    ...     print(f"  Train: index={train_index}")
+    ...     print(f"  Test:  index={test_index}")
+    Fold 0:
+      Train: index=[ 3  4  5  6  7  8  9 10 11 12 13 14 15 16 18 19 20 21 22 23 24 25 26 27
+     28 29 30 31 32 33 34 35 36 37 38 39 42 43 44 45 46]
+      Test:  index=[0]
+    Fold 1:
+      Train: index=[ 3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+     27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 51 52]
+      Test:  index=[1]
+    Fold 2:
+      Train: index=[ 3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+     27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50
+     51 52 53 54]
+      Test:  index=[2]
+    Fold 3:
+      Train: index=[ 0  1  2 15 16 45 48 49 50 51 52 53 54]
+      Test:  index=[3]
+    Fold 4:
+      Train: index=[ 0  1  2 15 16 32 36 49 52 53 54]
+      Test:  index=[4]
+    """  # noqa: E501
 
     def __init__(self, radius: float):
         self.radius = radius

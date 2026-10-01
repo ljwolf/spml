@@ -73,17 +73,50 @@ class LocalPermutation(BaseEstimator):
     --------
     Bandwidth with default uniform kernel (hard cutoff):
 
-    >>> lp = LocalPermutation(bandwidth=50_000, random_state=0)
-    >>> for perm in lp.sample(gdf):
-    ...     model.fit(X[perm], y[perm])
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
+    >>> from spml.validation import LocalPermutation
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc'))
+    >>> lp = LocalPermutation(bandwidth=30_000, n_permutations=3, random_state=0)
+    >>> for i, indices in enumerate(lp.sample(gdf)):
+    ...     print(f"Permutation {i}:")
+    ...     print(f"  Sample: index={indices}")
+    Permutation 0:
+      Sample: index=[49  2  1 19 11  7 10 18  5 33 14 38 15  9  8 13 12 20 37 21 22  3 23 28
+      4 26 30  6 34 32 25 36 27 31 29 24 35 40 42 17 39 51 45 47 46 16 54 50
+     53  0 43 44 48 41 52]
+    Permutation 1:
+      Sample: index=[49  2  1 21  8 27 22 39  9  6 14 15 16 10 44 13 12 20 42  3 41 17  5  4
+     19 23 29 28 35 34 24 36 31 26 33 32 30 25  7 11 50 18 37 40 51 43 48 38
+     54  0 52 47 53 46 45]
+    Permutation 2:
+      Sample: index=[49  2  1 25 17 29 14 47 44 13 15  9 16  8 10 11 12 22  4 41  3 27  7 19
+     23 30 36  5 24 31 21 26 33 34 35 32 28 42  6 50 20 43 18 52 40 51 48 38
+     37  0 54 39 45 46 53]
+
 
     Bandwidth with a smooth kernel (nearby pairs proposed more often):
 
-    >>> lp = LocalPermutation(bandwidth=50_000, kernel='bisquare',
-    ...                       random_state=0)
-    >>> for perm in lp.sample(gdf):
-    ...     model.fit(X[perm], y[perm])
-    """
+    >>> lp = LocalPermutation(
+    ...     bandwidth=30_000, n_permutations=3,  kernel='bisquare', random_state=0
+    ... )
+    >>> for i, indices in enumerate(lp.sample(gdf)):
+    ...     print(f"Permutation {i}:")
+    ...     print(f"  Sample: index={indices}")
+    Permutation 0:
+      Sample: index=[49  2  1 24 38  8 22 43  5 11 13 39 15  9 10 14 12 41 19 40  4  3 25 28
+     21  6 32 34 30 23 26 36 29 31 33 27 35 17 50 44 18 20 45 47 42 16  7 37
+     54  0 46 53 48 52 51]
+    Permutation 1:
+      Sample: index=[49  2  1  7 17 10 22 44 38 13 11 43 15  9  8 14 12 19 21 18 23  5  6  4
+     25 26 24 33 29 28 27 34 36 32 31 30 35 20  3 42 41 46 40 48 37 16 50 39
+     54  0 52 45 51 47 53]
+    Permutation 2:
+      Sample: index=[49  2  1 20 42 23 37 22 39 13  9 10  8 15 11 14 12 21 40  3 19 18  4 32
+      5 28 35 30 25 27 24 36 34 31 33 26 29 47 41  7 17 43 50 45  6 16 51 38
+     52  0 54 44 53 48 46]
+    """  # noqa: E501
 
     def __init__(
         self,

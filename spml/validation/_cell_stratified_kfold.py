@@ -116,10 +116,25 @@ class CellStratifiedKFold(BaseCrossValidator):
 
     Examples
     --------
-    >>> cv = CellStratifiedKFold(n_splits=5, grid="h3")
-    >>> for train, test in cv.split(gdf):
-    ...     model.fit(X[train], y[train])
-    ...     score = model.score(X[test], y[test])
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
+    >>> from spml.validation import CellStratifiedKFold
+
+    >>> gdf = gpd.read_file(get_path('geoda.hickory2'))
+    >>> cv = CellStratifiedKFold(n_splits=3, grid="h3")
+    >>> for i, (train_index, test_index) in enumerate(cv.split(gdf)):
+    ...     print(f"Fold {i}:")
+    ...     print(f"  Train: index={train_index}")
+    ...     print(f"  Test:  index={test_index}")
+    Fold 0:
+      Train: index=[ 2  8 10 11 12 13 14 15 17 18 19 20 21 22 24 25 26 27 28]
+      Test:  index=[ 0  1  3  4  5  6  7  9 16 23]
+    Fold 1:
+      Train: index=[ 0  1  3  4  5  6  7  9 12 16 17 19 20 21 22 23 24 25 28]
+      Test:  index=[ 2  8 10 11 13 14 15 18 26 27]
+    Fold 2:
+      Train: index=[ 0  1  2  3  4  5  6  7  8  9 10 11 13 14 15 16 18 23 26 27]
+      Test:  index=[12 17 19 20 21 22 24 25 28]
     """
 
     def __init__(

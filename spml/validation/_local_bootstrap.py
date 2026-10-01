@@ -83,19 +83,46 @@ class LocalBootstrap(BaseEstimator):
     --------
     Spatial use (GeoDataFrame):
 
-    >>> lb = LocalBootstrap(n_bootstraps=200, bandwidth=5_000,
-    ...                     kernel='bisquare', random_state=0)
-    >>> for indices in lb.sample(gdf):
-    ...     boot = gdf.iloc[indices].copy()
-    ...     boot.geometry = gdf.geometry.values   # restore original locations
-    ...     model.fit(boot[features], y[indices])
+    >>> import geopandas as gpd
+    >>> import numpy
+    >>> from geodatasets import get_path
+    >>> from spml.validation import LocalBootstrap
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc'))
+    >>> lb = LocalBootstrap(n_bootstraps=3, bandwidth=50_000, random_state=0)
+    >>> for i, indices in enumerate(lb.sample(gdf)):
+    ...     print(f"Bootstrap {i}:")
+    ...     print(f"  Sample: index={indices}")
+    Bootstrap 0:
+      Sample: index=[47  2  0 24 29 19 27  8  4 27  8 20 16  4 46 44 54  8 17  7  3 11 28 17
+     36 21 34  4 24 26 31 21 28 22 36 23 26 21  5 17 42 40 17 52 15 17 48 50
+     45 46 39 43  0 51 50]
+    Bootstrap 1:
+      Sample: index=[52 48  1 26 39 39 43 18 44 34 27  8 48  6 45  5 43  0 23 18 50 33 42 31
+     36 32 28 38 20 23 31 26 35 22  4 29 25 47 14 43 48 22 54  9 54 17 45 14
+      1 48 39 39 41 49  1]
+    Bootstrap 2:
+      Sample: index=[49  0  0 33 11 29  8 21  7 13  9 21  4  9 15 10 54 42 21 39 22 28 41 31
+     23 22 24 19 21 26  5 29 28  6  9 21 34  6 15  3 49  7 49 18 50 11 11 22
+     43 53 19 42 38 16  0]
+
 
     Time-series use (1-D array of time steps):
 
-    >>> t = numpy.arange(len(df))
-    >>> lb = LocalBootstrap(n_bootstraps=100, bandwidth=12, random_state=0)
-    >>> for indices in lb.sample(t):
-    ...     model.fit(X[indices], y[indices])
+    >>> t = numpy.arange(30)
+    >>> lb = LocalBootstrap(n_bootstraps=3, bandwidth=12, random_state=0)
+    >>> for i, indices in enumerate(lb.sample(t)):
+    ...     print(f"Bootstrap {i}:")
+    ...     print(f"  Sample: index={indices}")
+    Bootstrap 0:
+      Sample: index=[ 5  4  5  7  9  6 10  2  0 13  4 10 10  3 24 25 28  9 11 10  8 13 20 15
+     28 19 28 16 23 24]
+    Bootstrap 1:
+      Sample: index=[ 9  3  7  6 16  6  7  6  1  6 14 13  7 24 10 11 23 26 22 21 17 20 10 28
+     26 27 20 25 23 26]
+    Bootstrap 2:
+      Sample: index=[10 12  5 13 12 10  3 17  3 19  0 12  0 10  8 26 21 26 22 27 23 22 28 17
+     20 26 22 28 22 18]
     """  # noqa: E501
 
     def __init__(

@@ -52,9 +52,19 @@ def correlogram_range(
 
     Examples
     --------
-    >>> d = correlogram_range(gdf, y)
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
+    >>> from spml.validation import correlogram_range, LocalBootstrap, LocalPermutation
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc_education'))
+    >>> d = correlogram_range(gdf, gdf["pub_pk"], random_state=0)
+    >>> d
+    18828.445867154354
+
+    This can then be used as a bandwidth in sampling methods.
+
     >>> lb = LocalBootstrap(bandwidth=d)
-    >>> lp = LocalPermutation(threshold=d)
+    >>> lp = LocalPermutation(bandwidth=d)
     """
     from scipy.spatial.distance import pdist
 
@@ -141,9 +151,19 @@ def knn_range(X, y, max_k: int = 30) -> int:
 
     Examples
     --------
-    >>> k = knn_range(gdf, y)
-    >>> from libpysal.graph import Graph
-    >>> graph = Graph.build_knn(gdf, k=k)
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
+    >>> from spml.validation import knn_range, LocalBootstrap
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc_education'))
+    >>> k = knn_range(gdf, gdf["pub_pk"], max_k=1000)
+    >>> k
+    930
+
+    This can then inform sampling methods like :class:`~spml.validation.LocalBootstrap`.
+
+    >>> from libpysal import graph
+    >>> graph = graph.Graph.build_knn(gdf.centroid, k=k)
     >>> lb = LocalBootstrap(graph=graph)
     """
     from scipy.spatial import KDTree

@@ -60,20 +60,58 @@ class LeaveClusterOut(BaseCrossValidator):
 
     Examples
     --------
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
     >>> from sklearn.cluster import KMeans
-    >>> lco = LeaveClusterOut(KMeans(n_clusters=10, random_state=0))
-    >>> for train_idx, test_idx in lco.split(gdf):
-    ...     model.fit(X[train_idx], y[train_idx])
-    ...     score = model.score(X[test_idx], y[test_idx])
+    >>> from spml.validation import LeaveClusterOut
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc'))
+    >>> lco = LeaveClusterOut(KMeans(n_clusters=5, random_state=0))
+    >>> for i, (train_index, test_index) in enumerate(lco.split(gdf)):
+    ...     print(f"Fold {i}:")
+    ...     print(f"  Train: index={train_index}")
+    ...     print(f"  Test:  index={test_index}")
+    Fold 0:
+      Train: index=[ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 25
+     37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54]
+      Test:  index=[23 24 26 27 28 29 30 31 32 33 34 35 36]
+    Fold 1:
+      Train: index=[ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 17 18 19 20 21 22 23 24
+     25 26 27 28 29 30 31 32 33 34 35 36 37]
+      Test:  index=[16 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54]
+    Fold 2:
+      Train: index=[ 0  1  2  3  4 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34
+     35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54]
+      Test:  index=[ 5  6  7  8  9 10 11 12 13 14 15]
+    Fold 3:
+      Train: index=[ 3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+     27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50
+     51 52 53 54]
+      Test:  index=[0 1 2]
+    Fold 4:
+      Train: index=[ 0  1  2  5  6  7  8  9 10 11 12 13 14 15 16 23 24 26 27 28 29 30 31 32
+     33 34 35 36 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54]
+      Test:  index=[ 3  4 17 18 19 20 21 22 25 37]
 
     With HDBSCAN and noise points excluded from training:
 
     >>> from sklearn.cluster import HDBSCAN
-    >>> lco = LeaveClusterOut(HDBSCAN(min_cluster_size=20), noise="drop")
-    >>> for train_idx, test_idx in lco.split(gdf):
-    ...     model.fit(X[train_idx], y[train_idx])
-    ...     score = model.score(X[test_idx], y[test_idx])
-    """
+    >>> lco = LeaveClusterOut(HDBSCAN(min_cluster_size=3, copy=True), noise="drop")
+    >>> for i, (train_index, test_index) in enumerate(lco.split(gdf)):
+    ...     print(f"Fold {i}:")
+    ...     print(f"  Train: index={train_index}")
+    ...     print(f"  Test:  index={test_index}")
+    Fold 0:
+      Train: index=[18 20 22 23 24 25 26 28 29 30 31 35 37 38 39 40 41 42 43 46 47 48 50 51
+     53 54]
+      Test:  index=[ 6  8 11]
+    Fold 1:
+      Train: index=[ 6  8 11 22 23 24 25 26 28 29 30 31 35]
+      Test:  index=[18 20 37 38 39 40 41 42 43 46 47 48 50 51 53 54]
+    Fold 2:
+      Train: index=[ 6  8 11 18 20 37 38 39 40 41 42 43 46 47 48 50 51 53 54]
+      Test:  index=[22 23 24 25 26 28 29 30 31 35]
+    """  # noqa: E501
 
     _VALID_NOISE = ("train_only", "drop", "nearest")
 
