@@ -15,9 +15,8 @@ class PointSampler(BasePointSampler):
     ----------
     n_samples : int, default 100
         Number of points to generate.
-    quasi_random : str or None
-        TODO: Levi, can you explain what this is and what it does? it is fine to keep
-        it brief and link to the user guide
+    quasi_random: str or None
+        whether to use a fully random sequence (default), or choose between three supported quasi-random spatial sequences: the ``sobol``, ``halton``, or ``r2`` sequences. Quasi-random sequences are more dispersed/space-filling than truly random sequences. 
     random_state : int, RandomState instance, or None, default None
         Seed / random state passed to ``sklearn.utils.check_random_state``.
         TODO: all random_state docstrings across spml shoud say the same
