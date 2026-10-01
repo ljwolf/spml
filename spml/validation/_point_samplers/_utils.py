@@ -2,16 +2,20 @@
 
 from contextlib import contextmanager
 
-import numpy
+import numpy as np
 import shapely
-
 
 # ---------------------------------------------------------------------------
 # Public dispatch entry-point
 # ---------------------------------------------------------------------------
 
-def _sample_geometry(geometry, n_samples: int, rng: numpy.random.RandomState,
-                     quasi_random: str | None = None) -> list:
+
+def _sample_geometry(
+    geometry,
+    n_samples: int,
+    rng: np.random.RandomState,
+    quasi_random: str | None = None,
+) -> list:
     """Return *n_samples* points drawn uniformly at random inside/along *geometry*.
 
     Dispatch table
@@ -54,8 +58,10 @@ def _sample_geometry(geometry, n_samples: int, rng: numpy.random.RandomState,
 # Polygon samplers
 # ---------------------------------------------------------------------------
 
-def _sample_polygon_random(geometry, n_samples: int,
-                            rng: numpy.random.RandomState) -> list:
+
+def _sample_polygon_random(
+    geometry, n_samples: int, rng: np.random.RandomState
+) -> list:
     """Adaptive batch rejection sampling (Shapely 2 vectorised)."""
     shapely.prepare(geometry)
     minx, miny, maxx, maxy = geometry.bounds
@@ -83,8 +89,9 @@ def _sample_polygon_random(geometry, n_samples: int,
     return pts
 
 
-def _sample_polygon_qrn(geometry, n_samples: int,
-                         rng: numpy.random.RandomState, sequence: str) -> list:
+def _sample_polygon_qrn(
+    geometry, n_samples: int, rng: np.random.RandomState, sequence: str
+) -> list:
     """Quasi-random rejection sampling for polygons.
 
     Generates a single batch of QRN candidates sized for the expected
@@ -98,9 +105,9 @@ def _sample_polygon_qrn(geometry, n_samples: int,
     width, height = maxx - minx, maxy - miny
 
     coverage = shapely.area(geometry) / (width * height)
-    n_cands = max(int(numpy.ceil(n_samples / max(coverage, 0.01) * 2)), n_samples + 256)
+    n_cands = max(int(np.ceil(n_samples / max(coverage, 0.01) * 2)), n_samples + 256)
 
-    seed = int(rng.randint(0, 2 ** 31))
+    seed = int(rng.randint(0, 2**31))
     xy = qrn_2d(n_cands, sequence, seed)
     xs = minx + xy[:, 0] * width
     ys = miny + xy[:, 1] * height
@@ -119,8 +126,13 @@ def _sample_polygon_qrn(geometry, n_samples: int,
 # Line sampler
 # ---------------------------------------------------------------------------
 
-def _sample_line(geometry, n_samples: int, rng: numpy.random.RandomState,
-                 quasi_random: str | None = None) -> list:
+
+def _sample_line(
+    geometry,
+    n_samples: int,
+    rng: np.random.RandomState,
+    quasi_random: str | None = None,
+) -> list:
     """Sample *n_samples* points uniformly by arc length along a line geometry.
 
     Works on LineString, LinearRing, and MultiLineString.  For MultiLineString
@@ -137,7 +149,8 @@ def _sample_line(geometry, n_samples: int, rng: numpy.random.RandomState,
         )
     if quasi_random is not None:
         from ._quasi import qrn_1d
-        seed = int(rng.randint(0, 2 ** 31))
+
+        seed = int(rng.randint(0, 2**31))
         distances = qrn_1d(n_samples, quasi_random, seed) * total_length
     else:
         distances = rng.uniform(0, total_length, n_samples)
@@ -148,17 +161,18 @@ def _sample_line(geometry, n_samples: int, rng: numpy.random.RandomState,
 # Integer allocation (largest-remainder / Hamilton method)
 # ---------------------------------------------------------------------------
 
-def _allocate_proportionally(proportions: numpy.ndarray, n_total: int) -> numpy.ndarray:
+
+def _allocate_proportionally(proportions: np.ndarray, n_total: int) -> np.ndarray:
     """Allocate *n_total* items across bins according to *proportions*.
 
     Uses the largest-remainder method so the sum equals *n_total* exactly.
     """
-    proportions = numpy.asarray(proportions, dtype=float)
+    proportions = np.asarray(proportions, dtype=float)
     raw = proportions * n_total
-    floor = numpy.floor(raw).astype(int)
+    floor = np.floor(raw).astype(int)
     deficit = n_total - floor.sum()
     remainder = raw - floor
-    top = numpy.argsort(remainder)[::-1][:deficit]
+    top = np.argsort(remainder)[::-1][:deficit]
     floor[top] += 1
     return floor
 
@@ -166,6 +180,7 @@ def _allocate_proportionally(proportions: numpy.ndarray, n_total: int) -> numpy.
 # ---------------------------------------------------------------------------
 # Rasterio context manager
 # ---------------------------------------------------------------------------
+
 
 @contextmanager
 def _open_raster(source):
@@ -183,3 +198,21 @@ def _open_raster(source):
     else:
         with rasterio.open(source) as ds:
             yield ds
+
+
+# ---------------------------------------------------------------------------
+# Geometry collection
+# ---------------------------------------------------------------------------
+
+
+def _collect_geometries(geometries):
+    """Collect geometries without performing an expensive union."""
+    type_ids = shapely.get_type_id(geometries)
+
+    if np.all((type_ids == 0) | (type_ids == 4)):
+        return shapely.multipoints(shapely.get_parts(geometries))
+    if np.all(((type_ids >= 1) & (type_ids <= 2)) | (type_ids == 5)):
+        return shapely.multilinestrings(shapely.get_parts(geometries))
+    if np.all((type_ids == 3) | (type_ids == 6)):
+        return shapely.multipolygons(shapely.get_parts(geometries))
+    return shapely.geometrycollections(geometries)

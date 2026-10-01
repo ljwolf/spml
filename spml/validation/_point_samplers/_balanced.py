@@ -1,15 +1,15 @@
-import numpy
+import geopandas as gpd
+import numpy as np
 import pandas as pd
-import geopandas
 import shapely
 from sklearn.utils import check_random_state
 
 from ._base import BasePointSampler
-from ._utils import _sample_geometry, _open_raster
+from ._utils import _collect_geometries, _open_raster, _sample_geometry
 
 
 class ConstantClassSampler(BasePointSampler):
-    """Sample exactly *n_per_class* points from each class.
+    """Sample exactly ``n_per_class`` points from each class.
 
     Accepts a :class:`geopandas.GeoSeries` / :class:`geopandas.GeoDataFrame`
     paired with a *labels* vector, or a rasterio dataset paired with a 2-D
@@ -20,7 +20,10 @@ class ConstantClassSampler(BasePointSampler):
     n_per_class : int, default 100
         Exact number of points to generate per class.
     quasi_random : str or None
+        TODO: Levi, can you explain what this is and what it does? it is fine to keep
+        it brief and link to the user guide
     random_state : int, RandomState instance, or None
+        Random seed for reproducibility, by default None
 
     Examples
     --------
@@ -46,7 +49,7 @@ class ConstantClassSampler(BasePointSampler):
         self.quasi_random = quasi_random
         self.random_state = random_state
 
-    def sample(self, geometry, labels=None) -> geopandas.GeoDataFrame:  # ty:ignore[invalid-method-override]
+    def sample(self, geometry, labels=None) -> gpd.GeoDataFrame:  # ty:ignore[invalid-method-override]
         """Generate balanced class samples.
 
         Parameters
@@ -56,7 +59,7 @@ class ConstantClassSampler(BasePointSampler):
             path) is used for its transform / CRS / nodata metadata only --
             no band is read from it here.
         labels : array-like of shape (n,) or 2-D ndarray, required
-            Class label for each geometry (GDF path) or a 2-D numpy array of
+            Class label for each geometry (GeoPandas path) or a 2-D numpy array of
             integer class labels with shape ``(nrows, ncols)`` (raster path,
             e.g. ``ds.read(1)``).
 
@@ -74,31 +77,31 @@ class ConstantClassSampler(BasePointSampler):
                 "or ds.read(band) for raster input."
             )
 
-        if isinstance(geometry, (geopandas.GeoDataFrame, geopandas.GeoSeries)):
+        if isinstance(geometry, (gpd.GeoDataFrame, gpd.GeoSeries)):
             geoseries = (
                 geometry.geometry
-                if isinstance(geometry, geopandas.GeoDataFrame)
+                if isinstance(geometry, gpd.GeoDataFrame)
                 else geometry
             )
             return self._sample_gdf(
-                geoseries, numpy.asarray(labels), self.n_per_class, rng
+                geoseries, np.asarray(labels), self.n_per_class, rng
             )
 
-        return self._sample_raster(geometry, numpy.asarray(labels), self.n_per_class, rng)
+        return self._sample_raster(geometry, np.asarray(labels), self.n_per_class, rng)
 
     # ------------------------------------------------------------------
     # GeoDataFrame path
     # ------------------------------------------------------------------
 
     def _sample_gdf(self, geoseries, labels_arr, n_per_class, rng):
-        geoms = numpy.asarray(geoseries)
+        geoms = geoseries.geometry.array
         crs = geoseries.crs
         frames = []
-        for label in numpy.unique(labels_arr):
-            union = shapely.union_all(geoms[labels_arr == label])
-            pts = _sample_geometry(union, n_per_class, rng, self.quasi_random)
+        for label in np.unique(labels_arr):
+            collected = _collect_geometries(geoms[labels_arr == label])
+            pts = _sample_geometry(collected, n_per_class, rng, self.quasi_random)
             frames.append(
-                geopandas.GeoDataFrame({"class_label": label, "geometry": pts}, crs=crs)
+                gpd.GeoDataFrame({"class_label": label, "geometry": pts}, crs=crs)
             )
         return pd.concat(frames, ignore_index=True)
 
@@ -117,13 +120,13 @@ class ConstantClassSampler(BasePointSampler):
             res_x, res_y = ds.res
 
         data = labels_arr if labels_arr.ndim == 2 else labels_arr.squeeze()
-        classes = numpy.unique(data)
+        classes = np.unique(data)
         if nodata is not None:
             classes = classes[classes != nodata]
 
         frames = []
         for cls in classes:
-            rows, cols = numpy.where(data == cls)
+            rows, cols = np.where(data == cls)
             if rows.size == 0:
                 continue
             replace = rows.size < n_per_class
@@ -131,16 +134,16 @@ class ConstantClassSampler(BasePointSampler):
             r, c = rows[idx], cols[idx]
 
             xs, ys = rasterio.transform.xy(transform, r, c)
-            xs = numpy.asarray(xs, dtype=float) + rng.uniform(
+            xs = np.asarray(xs, dtype=float) + rng.uniform(
                 -res_x / 2, res_x / 2, n_per_class
             )
-            ys = numpy.asarray(ys, dtype=float) + rng.uniform(
+            ys = np.asarray(ys, dtype=float) + rng.uniform(
                 -res_y / 2, res_y / 2, n_per_class
             )
 
             pts = list(shapely.points(xs, ys))
             frames.append(
-                geopandas.GeoDataFrame({"class_label": int(cls), "geometry": pts}, crs=crs)
+                gpd.GeoDataFrame({"class_label": int(cls), "geometry": pts}, crs=crs)
             )
 
         return pd.concat(frames, ignore_index=True)
