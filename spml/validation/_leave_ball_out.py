@@ -107,5 +107,7 @@ class LeaveBallOut(BaseCrossValidator):
             train_mask[buffered] = False
             yield indices[train_mask], np.array([i])
 
-    def get_n_splits(self, X, y=None, groups=None) -> int:  # noqa: ARG002
+    def get_n_splits(self, X=None, y=None, groups=None) -> int:  # noqa: ARG002
+        if X is None:
+            raise ValueError("X cannot be None.")
         return len(X)

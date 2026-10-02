@@ -307,7 +307,7 @@ def test_invalid_noise_mode_raises(three_clusters):
             ClusterStratifiedKFold(
                 KMeans(n_clusters=3, random_state=0, n_init=10),
                 n_splits=3,
-                noise="bogus",
+                noise="bogus",  # type: ignore
             ).split(gdf)
         )
 
