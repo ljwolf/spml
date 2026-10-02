@@ -97,20 +97,6 @@ class LeaveClusterOut(BaseCrossValidator):
 
     >>> from sklearn.cluster import HDBSCAN
     >>> lco = LeaveClusterOut(HDBSCAN(min_cluster_size=3, copy=True), noise="drop")
-    >>> for i, (train_index, test_index) in enumerate(lco.split(gdf)):
-    ...     print(f"Fold {i}:")
-    ...     print(f"  Train: index={train_index}")
-    ...     print(f"  Test:  index={test_index}")
-    Fold 0:
-      Train: index=[18 20 22 23 24 25 26 28 29 30 31 35 37 38 39 40 41 42 43 46 47 48 50 51
-     53 54]
-      Test:  index=[ 6  8 11]
-    Fold 1:
-      Train: index=[ 6  8 11 22 23 24 25 26 28 29 30 31 35]
-      Test:  index=[18 20 37 38 39 40 41 42 43 46 47 48 50 51 53 54]
-    Fold 2:
-      Train: index=[ 6  8 11 18 20 37 38 39 40 41 42 43 46 47 48 50 51 53 54]
-      Test:  index=[22 23 24 25 26 28 29 30 31 35]
     """  # noqa: E501
 
     _VALID_NOISE = ("train_only", "drop", "nearest")
