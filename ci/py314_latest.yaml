@@ -12,6 +12,8 @@ dependencies:
   - joblib
   # optional
   - h3-py
+  - healpy
+  - s2sphere
   - rasterio
   # testing
   - geodatasets
@@ -22,3 +24,6 @@ dependencies:
   - pytest-xdist
   - pytest-doctestplus
   - ty
+  - pip
+  - pip:
+    - pya5
