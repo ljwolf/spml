@@ -30,6 +30,15 @@ dependencies = [
     "pandas>=2.3.0",
 ]
 
+[project.optional-dependencies]
+optional = [
+    "h3",
+    "healpy",
+    "s2sphere",
+    "rasterio",
+    "pya5",
+]
+
 [project.urls]
 Homepage = "https://pysal.org/spml/"
 Documentation = "https://pysal.org/spml/"
