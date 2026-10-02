@@ -1,5 +1,5 @@
-import pytest
 import geopandas
+import pytest
 
 from spml.validation import PointSampler
 
@@ -35,7 +35,8 @@ def test_geodataframe_input_dissolved(class_gdf):
 def test_concave_geometry():
     """L-shaped geometry -- tests that rejection sampling handles non-convex shapes."""
     from shapely.geometry import Polygon
-    l_shape = Polygon([(0,0),(10,0),(10,5),(5,5),(5,10),(0,10)])
+
+    l_shape = Polygon([(0, 0), (10, 0), (10, 5), (5, 5), (5, 10), (0, 10)])
     pts = PointSampler(n_samples=100, random_state=7).sample(l_shape)
     assert len(pts) == 100
     assert all(l_shape.contains(p) for p in pts.geometry)
@@ -43,7 +44,11 @@ def test_concave_geometry():
 
 def test_sklearn_get_params():
     sampler = PointSampler(n_samples=100, random_state=42)
-    assert sampler.get_params() == {"n_samples": 100, "quasi_random": None, "random_state": 42}
+    assert sampler.get_params() == {
+        "n_samples": 100,
+        "quasi_random": None,
+        "random_state": 42,
+    }
 
 
 def test_sklearn_set_params(square):
@@ -56,14 +61,17 @@ def test_sklearn_set_params(square):
 
 def test_zero_area_raises():
     from shapely.geometry import Polygon
+
     with pytest.raises(ValueError, match="zero-area"):
         PointSampler(n_samples=10).sample(Polygon())  # empty / degenerate polygon
 
 
 # -- Line geometry tests -------------------------------------------------------
 
+
 def test_linestring_count():
     from shapely.geometry import LineString
+
     line = LineString([(0, 0), (10, 0)])
     pts = PointSampler(n_samples=200, random_state=0).sample(line)
     assert len(pts) == 200
@@ -71,6 +79,7 @@ def test_linestring_count():
 
 def test_linestring_points_on_line():
     from shapely.geometry import LineString
+
     line = LineString([(0, 0), (10, 0)])
     pts = PointSampler(n_samples=500, random_state=7).sample(line)
     # All points lie on y=0, x in [0,10]
@@ -80,6 +89,7 @@ def test_linestring_points_on_line():
 
 def test_multilinestring_uniform_arc_length():
     from shapely.geometry import MultiLineString
+
     # Two segments: length 6 and length 4 -> total 10
     mls = MultiLineString([[(0, 0), (6, 0)], [(10, 0), (14, 0)]])
     pts = PointSampler(n_samples=10_000, random_state=0).sample(mls)
@@ -91,6 +101,7 @@ def test_multilinestring_uniform_arc_length():
 
 def test_diagonal_linestring():
     from shapely.geometry import LineString
+
     line = LineString([(0, 0), (3, 4)])  # length = 5
     pts = PointSampler(n_samples=100, random_state=1).sample(line)
     assert len(pts) == 100
@@ -101,6 +112,7 @@ def test_diagonal_linestring():
 
 def test_linearring():
     from shapely.geometry import LinearRing
+
     ring = LinearRing([(0, 0), (4, 0), (4, 3), (0, 3)])  # perimeter = 14
     pts = PointSampler(n_samples=150, random_state=2).sample(ring)
     assert len(pts) == 150
@@ -108,6 +120,7 @@ def test_linearring():
 
 def test_line_crs_preserved():
     from shapely.geometry import LineString
+
     gs = geopandas.GeoSeries([LineString([(0, 0), (1, 0)])], crs="EPSG:32632")
     pts = PointSampler(n_samples=50, random_state=0).sample(gs)
     assert pts.crs.to_epsg() == 32632
