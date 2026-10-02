@@ -107,7 +107,7 @@ def test_permutations_differ(grid_gdf):
         bandwidth=1.5, derangement=True, n_permutations=20, random_state=0
     )
     perms = list(lp.sample(grid_gdf))
-    unique = set(tuple(p) for p in perms)
+    unique = {tuple(p) for p in perms}
     assert len(unique) > 1, "All permutations identical -- Markov chain is stuck"
 
 
@@ -141,7 +141,7 @@ def test_reproducible(grid_gdf):
     lp2 = LocalPermutation(
         bandwidth=1.5, derangement=True, n_permutations=10, random_state=99
     )
-    for p1, p2 in zip(lp1.sample(grid_gdf), lp2.sample(grid_gdf)):
+    for p1, p2 in zip(lp1.sample(grid_gdf), lp2.sample(grid_gdf), strict=True):
         numpy.testing.assert_array_equal(p1, p2)
 
 

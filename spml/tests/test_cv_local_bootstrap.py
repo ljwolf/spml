@@ -241,7 +241,7 @@ def test_sparse_reproducible(line_gdf):
             line_gdf
         )
     )
-    for a, b in zip(b1, b2):
+    for a, b in zip(b1, b2, strict=False):
         numpy.testing.assert_array_equal(a, b)
 
 
@@ -255,7 +255,7 @@ def test_reproducible(line_gdf):
     b2 = list(
         LocalBootstrap(n_bootstraps=10, bandwidth=2.0, random_state=42).sample(line_gdf)
     )
-    for a, b in zip(b1, b2):
+    for a, b in zip(b1, b2, strict=False):
         numpy.testing.assert_array_equal(a, b)
 
 
@@ -375,7 +375,7 @@ def test_k1_cross_sampling(line_gdf, donor_gdf):
     assert set(boot["value"]).issubset(set(donor_gdf["value"]))
 
 
-def test_bandwidth_k_both_raises(line_gdf):
+def test_bandwidth_k_both_raises():
     with pytest.raises(ValueError, match="mutually exclusive"):
         LocalBootstrap(bandwidth=1.0, k=3)
 
@@ -391,7 +391,7 @@ def test_cross_reproducible(line_gdf, donor_gdf):
             line_gdf, donor=donor_gdf
         )
     )
-    for a, b in zip(b1, b2):
+    for a, b in zip(b1, b2, strict=False):
         numpy.testing.assert_array_equal(a.index, b.index)
         numpy.testing.assert_array_equal(a["value"].values, b["value"].values)
 

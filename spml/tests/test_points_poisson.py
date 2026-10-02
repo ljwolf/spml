@@ -24,7 +24,7 @@ def square():
 
 
 @pytest.fixture
-def obs_points(square):
+def obs_points():
     """Cluster of observed points in the NE corner of the square."""
     rng = numpy.random.default_rng(0)
     x = rng.uniform(7, 10, 50)
@@ -40,7 +40,7 @@ def test_callable_uniform_count(square):
     counts = []
     for seed in range(30):
         pts = PoissonSampler(random_state=seed).sample(
-            square, lambda x, y: numpy.ones_like(x, dtype=float)
+            square, lambda x, _: numpy.ones_like(x, dtype=float)
         )
         counts.append(len(pts))
     mean_n = numpy.mean(counts)
@@ -49,7 +49,7 @@ def test_callable_uniform_count(square):
 
 def test_callable_points_inside_window(square):
     pts = PoissonSampler(random_state=0).sample(
-        square, lambda x, y: numpy.ones_like(x, dtype=float)
+        square, lambda x, _: numpy.ones_like(x, dtype=float)
     )
     assert all(square.covers(p) for p in pts.geometry)
 
@@ -57,7 +57,7 @@ def test_callable_points_inside_window(square):
 def test_callable_gradient_skews_distribution(square):
     """λ(x,y) = x/10 -> more points in the east half (x > 5) than the west."""
     pts = PoissonSampler(random_state=42).sample(
-        square, lambda x, y: numpy.asarray(x, dtype=float) / 10.0
+        square, lambda x, _: numpy.asarray(x, dtype=float) / 10.0
     )
     assert len(pts) > 0
     east = (pts.geometry.x > 5).sum()
@@ -67,7 +67,7 @@ def test_callable_gradient_skews_distribution(square):
 
 def test_callable_zero_intensity_returns_empty(square):
     pts = PoissonSampler(random_state=0).sample(
-        square, lambda x, y: numpy.zeros_like(x, dtype=float)
+        square, lambda x, _: numpy.zeros_like(x, dtype=float)
     )
     assert len(pts) == 0
 
@@ -75,7 +75,7 @@ def test_callable_zero_intensity_returns_empty(square):
 def test_callable_n_expected(square):
     """n_expected pins the expected count regardless of the raw intensity."""
 
-    def fn(x, y):
+    def fn(x, _):
         return numpy.ones_like(x, dtype=float)
 
     counts = [
@@ -86,7 +86,7 @@ def test_callable_n_expected(square):
 
 
 def test_callable_reproducible(square):
-    def fn(x, y):
+    def fn(x, _):
         return numpy.ones_like(x, dtype=float)
 
     pts1 = PoissonSampler(random_state=5).sample(square, fn)
@@ -97,7 +97,7 @@ def test_callable_reproducible(square):
 
 def test_callable_returns_geodataframe(square):
     pts = PoissonSampler(random_state=0).sample(
-        square, lambda x, y: numpy.ones_like(x, dtype=float)
+        square, lambda x, _: numpy.ones_like(x, dtype=float)
     )
     assert isinstance(pts, geopandas.GeoDataFrame)
     assert "geometry" in pts.columns
@@ -232,7 +232,7 @@ def test_kde_bad_type_raises(square):
 def test_geoseries_window_crs_propagated():
     gs = geopandas.GeoSeries([box(0, 0, 10, 10)], crs="EPSG:4326")
     pts = PoissonSampler(random_state=0).sample(
-        gs, lambda x, y: numpy.ones_like(x, dtype=float)
+        gs, lambda x, _: numpy.ones_like(x, dtype=float)
     )
     assert pts.crs is not None
     assert pts.crs.to_epsg() == 4326
