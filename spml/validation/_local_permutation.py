@@ -8,6 +8,8 @@ References
 """
 
 import numpy as np
+import scipy
+from packaging.version import Version
 from scipy.sparse import csr_array
 from scipy.sparse.csgraph import min_weight_full_bipartite_matching
 from sklearn.base import BaseEstimator
@@ -374,7 +376,12 @@ class LocalPermutation(BaseEstimator):
         """
         rows, cols = adj_csr.nonzero()
         weights = rng.uniform(0.0, 1.0, len(rows)).astype(float)
-        cost_csr = csr_array((weights, (rows, cols)), shape=(n, n))
+        if Version(scipy.__version__) >= Version("1.18"):
+            cost_csr = csr_array((weights, (rows, cols)), shape=(n, n))
+        else:
+            from scipy.sparse import csr_matrix
+
+            cost_csr = csr_matrix((weights, (rows, cols)), shape=(n, n))
 
         try:
             row_ind, col_ind = min_weight_full_bipartite_matching(cost_csr)

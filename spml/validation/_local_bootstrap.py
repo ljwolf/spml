@@ -9,6 +9,8 @@ References
 
 import geopandas as gpd
 import numpy as np
+import scipy
+from packaging.version import Version
 from scipy.sparse import diags
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
@@ -412,9 +414,14 @@ class LocalBootstrap(BaseEstimator):
         tree_donor = KDTree(donor_coords)
 
         # sparse_distance_matrix returns a coo_array with shape (|X|, |donor|)
-        D = tree_X.sparse_distance_matrix(
-            tree_donor, max_distance=bandwidth, output_type="coo_array"
-        )
+        if Version(scipy.__version__) >= Version("1.18"):
+            D = tree_X.sparse_distance_matrix(
+                tree_donor, max_distance=bandwidth, output_type="coo_array"
+            )
+        else:
+            D = tree_X.sparse_distance_matrix(
+                tree_donor, max_distance=bandwidth, output_type="coo_matrix"
+            )
         data = KERNELS[self.kernel](D.data / bandwidth)
         mask = data > 0
 
