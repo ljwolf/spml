@@ -109,7 +109,7 @@ class BallKFold(BaseCrossValidator):
             X = gpd.GeoSeries.from_xy(coords[:, 0], coords[:, 1])
 
         sparr = X.sindex.query(
-            X, predicate="dwithin", distance=r, output_format="sparse"
+            X.geometry, predicate="dwithin", distance=r, output_format="sparse"
         )
         sparr.setdiag(0)
 

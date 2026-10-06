@@ -9,7 +9,7 @@ installation
 
 ```{toctree}
 :hidden:
-:caption: User Guide
+:caption: Geographically-weighted models
 introduction
 linear
 ensemble
@@ -24,7 +24,7 @@ references
 
 ```{toctree}
 :hidden:
-:caption: Validation
+:caption: Model validation
 validation/ball_kfold
 validation/cell_stratified_kfold
 validation/cluster_stratified_kfold
