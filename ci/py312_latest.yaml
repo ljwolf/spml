@@ -16,6 +16,7 @@ dependencies:
   - healpy
   - s2sphere
   - rasterio
+  - statsmodels
   # testing
   - geodatasets
   - mgwr

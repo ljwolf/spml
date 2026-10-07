@@ -34,7 +34,7 @@ def _weighted_geary(Z, focal, neighbor, weights, p):
 
 def gearygram(
     X,
-    geometry=None,
+    geometry,
     n_bins: int = 15,
     max_distance: float | None = None,
     max_k: int | None = None,
@@ -77,10 +77,9 @@ def gearygram(
     ----------
     X : array-like of shape (n,) or (n, p)
         Observed values.  A 1-D array is treated as a single variable.
-        If *X* is a GeoDataFrame with a ``geometry`` column and *geometry*
-        is not provided, locations are read from that column.
-    geometry : GeoDataFrame | GeoSeries | (n, 2) ndarray or None
-        Locations.  Required if *X* has no ``geometry`` attribute.
+        A 2-D array results in multivariate statistics.
+    geometry : GeoDataFrame | GeoSeries | (n, 2) ndarray
+        Locations.
     n_bins : int, default 15
         Number of bandwidths (bandwidth/nonparametric mode).
         Ignored for kNN mode.
@@ -96,7 +95,7 @@ def gearygram(
         bandwidth mode.  Ignored for nonparametric mode.
     nonparametric : bool, default False
         If True, fit a LOWESS curve instead of computing kernel-weighted
-        bins.  Ignored when *max_k* is set.
+        bins.  Ignored when *max_k* is set. Requires ``statsmodels`` package.
 
     Returns
     -------
@@ -111,32 +110,55 @@ def gearygram(
 
     Examples
     --------
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
+    >>> from spml.metrics import gearygram
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc'))
+
     Bandwidth correlogram (Gaussian kernel):
 
-    >>> result = gearygram(Y, gdf)
+    >>> gearygram(gdf["forhis06"], gdf)
+    {'bin_centers': array([  5189.69739564,  15569.09218692,  25948.4869782 ,  36327.88176948,
+             46707.27656076,  57086.67135204,  67466.06614332,  77845.4609346 ,
+             88224.85572587,  98604.25051715, 108983.64530843, 119363.04009971,
+            129742.43489099, 140121.82968227, 150501.22447355]),
+     'C': array([0.40951283, 0.77018579, 0.94478368, 0.97883804, 0.98355345,
+            0.98583428, 0.98896993, 0.99248711, 0.99586266, 0.998867  ,
+            1.00144838, 1.00363258, 1.00547127, 1.00701953, 1.00832734]),
+     'n_pairs': array([1485, 1485, 1485, 1485, 1485, 1485, 1485, 1485, 1485, 1485, 1485,
+            1485, 1485, 1485, 1485])}
 
     kNN correlogram with Gaussian kernel weighting:
 
-    >>> result = gearygram(Y, gdf, max_k=20, kernel="gaussian")
+    >>> gearygram(gdf["forhis06"], gdf, max_k=20, kernel="gaussian")
+    {'bin_centers': array([ 1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., 10., 11., 12., 13.,
+            14., 15., 16., 17., 18., 19., 20.]),
+     'C': array([0.41510402, 0.47727678, 0.4995121 , 0.51334353, 0.51458923,
+            0.55075855, 0.56997683, 0.62989703, 0.66767808, 0.70706257,
+            0.73832148, 0.75745566, 0.76105857, 0.78276971, 0.80870455,
+            0.83424149, 0.86179572, 0.88380642, 0.89642786, 0.9066637 ]),
+     'n_pairs': array([  55,  110,  165,  220,  275,  330,  385,  440,  495,  550,  605,
+             660,  715,  770,  825,  880,  935,  990, 1045, 1100])}
 
     Nonparametric LOWESS correlogram:
 
-    >>> result = gearygram(Y, gdf, nonparametric=True)
+    >>> gearygram(gdf["forhis06"], gdf, nonparametric=True)
+    {'bin_centers': array([     0.        ,  41610.14913325,  58845.63723661,  72070.89240931,
+            83220.2982665 ,  93043.12201585, 101923.63349757, 110090.10662289,
+            117691.27447322, 124830.44739975, 131582.84504035, 138005.25214572,
+            144141.78481861, 150027.52627964, 155690.92186919]),
+    'C': array([0.50732906, 0.6164969 , 0.54898884, 0.52667128, 0.60943206,
+            0.71562291, 0.82443414, 0.96403992, 1.12606386, 1.26639777,
+            1.39781745, 1.53063871, 1.66770033, 1.8083954 , 1.95048593]),
+    'n_pairs': None}
 
     Notes
     -----
     Bandwidth bins with fewer than 2 pairs are returned as ``NaN``.
-    """
-    from scipy.spatial import cKDTree
-
-    if geometry is None:
-        if hasattr(X, "geometry"):
-            geometry = X.geometry
-            X = X.drop("geometry", axis=1)
-        else:
-            raise ValueError(
-                "geometry must be provided when X has no geometry attribute."
-            )
+    """  # noqa: E501
+    from scipy.spatial import KDTree
+    from scipy.spatial.distance import pdist as _pdist
 
     X = numpy.asarray(X, dtype=float)
     if X.ndim == 1:
@@ -160,7 +182,7 @@ def gearygram(
         raise ValueError(f"kernel must be one of {list(KERNELS)}, got {kernel!r}.")
 
     coords = _get_coords(geometry)
-    tree = cKDTree(coords)
+    tree = KDTree(coords)
 
     # --- kNN path -------------------------------------------------------------
     if max_k is not None:
@@ -185,8 +207,10 @@ def gearygram(
 
     # --- nonparametric LOWESS path --------------------------------------------
     if nonparametric:
-        from scipy.spatial.distance import pdist as _pdist
-        from statsmodels.nonparametric.smoothers_lowess import lowess
+        try:
+            from statsmodels.nonparametric.smoothers_lowess import lowess
+        except ImportError as e:
+            raise ImportError("Nonparametric gearygram require `statsmodels`.") from e
 
         dists = _pdist(coords)
         iu = numpy.triu_indices(n, k=1)
@@ -211,10 +235,7 @@ def gearygram(
 
     # --- bandwidth path -------------------------------------------------------
     if max_distance is None:
-        raise ValueError(
-            "max_distance is required for bandwidth mode. "
-            "Pass max_k for kNN mode or nonparametric=True for LOWESS."
-        )
+        max_distance = _pdist(coords).max()
 
     bins = numpy.linspace(0.0, max_distance, n_bins + 1)
     bin_centers = 0.5 * (bins[:-1] + bins[1:])
@@ -224,7 +245,7 @@ def gearygram(
     if kernel in _COMPACT_KERNELS:
         # only pairs within max_distance ever get nonzero weight; build once
         sp = tree.sparse_distance_matrix(
-            tree, max_distance=max_distance, output_type="coo_matrix"
+            tree, max_distance=max_distance, output_type="coo_array"
         )
         rows = numpy.asarray(sp.row)
         cols = numpy.asarray(sp.col)

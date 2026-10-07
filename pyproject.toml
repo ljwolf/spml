@@ -38,6 +38,7 @@ optional = [
     "s2sphere",
     "rasterio",
     "pya5",
+    "statsmodels",
 ]
 
 [project.urls]

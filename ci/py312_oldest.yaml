@@ -15,6 +15,7 @@ dependencies:
   # optional
   - h3-py
   - rasterio
+  - statsmodels
   # testing
   - geodatasets
   - mgwr
