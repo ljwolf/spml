@@ -1,23 +1,29 @@
-import pytest
 import geopandas
-from shapely.geometry import box, LineString
+import pytest
+from shapely.geometry import LineString, box
 
 from spml.validation import ConstantClassSampler
 
 
 def test_equal_counts_per_class(class_gdf):
-    pts = ConstantClassSampler(n_per_class=25).sample(class_gdf.geometry, class_gdf["class"])
+    pts = ConstantClassSampler(n_per_class=25).sample(
+        class_gdf.geometry, class_gdf["class"]
+    )
     counts = pts.groupby("class_label").size()
     assert (counts == 25).all()
 
 
 def test_class_labels_present(class_gdf):
-    pts = ConstantClassSampler(n_per_class=10).sample(class_gdf.geometry, class_gdf["class"])
+    pts = ConstantClassSampler(n_per_class=10).sample(
+        class_gdf.geometry, class_gdf["class"]
+    )
     assert set(pts["class_label"]) == {"A", "B"}
 
 
 def test_geometry_column(class_gdf):
-    pts = ConstantClassSampler(n_per_class=10).sample(class_gdf.geometry, class_gdf["class"])
+    pts = ConstantClassSampler(n_per_class=10).sample(
+        class_gdf.geometry, class_gdf["class"]
+    )
     assert "geometry" in pts.columns
 
 
@@ -51,14 +57,16 @@ def test_sklearn_get_params():
 
 
 def test_line_geodataframe():
-    gdf = geopandas.GeoDataFrame({
-        "class": ["A", "A", "B"],
-        "geometry": [
-            LineString([(0, 0), (5, 0)]),
-            LineString([(5, 0), (10, 0)]),
-            LineString([(0, 1), (10, 1)]),
-        ],
-    })
+    gdf = geopandas.GeoDataFrame(
+        {
+            "class": ["A", "A", "B"],
+            "geometry": [
+                LineString([(0, 0), (5, 0)]),
+                LineString([(5, 0), (10, 0)]),
+                LineString([(0, 1), (10, 1)]),
+            ],
+        }
+    )
     pts = ConstantClassSampler(n_per_class=30).sample(gdf.geometry, gdf["class"])
     counts = pts.groupby("class_label").size()
     assert (counts == 30).all()

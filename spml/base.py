@@ -170,11 +170,13 @@ class _BaseModel(BaseEstimator):
         if invariant.any():
             if self.strict:
                 raise ValueError(
-                    f"y at locations {invariant.index[invariant]} is invariant."
+                    f"y at locations {invariant.index[invariant].to_list()} "
+                    "is invariant."
                 )
             elif self.strict is None:
                 warnings.warn(
-                    f"y at locations {invariant.index[invariant]} is invariant.",
+                    f"y at locations {invariant.index[invariant].to_list()} "
+                    "is invariant.",
                     stacklevel=3,
                 )
 
@@ -953,7 +955,7 @@ class BaseClassifier(ClassifierMixin, _BaseModel):
         name: Hashable,
         focal_x: np.ndarray,
         model_kwargs: dict,
-    ) -> list[Hashable]:
+    ) -> list:
         """Fit individual local model"""
 
         if self.undersample:

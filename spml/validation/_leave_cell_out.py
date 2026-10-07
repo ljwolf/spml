@@ -1,13 +1,12 @@
 """Discrete global grid system leave-one-cell-out cross-validation."""
 
-import numpy
-
-from sklearn.base import BaseEstimator
+import numpy as np
+from sklearn.model_selection import BaseCrossValidator
 
 from ._cell_stratified_kfold import _GRIDS, _RES_RANGES, _assign_cells, _to_lonlat
 
 
-class LeaveCellOut(BaseEstimator):
+class LeaveCellOut(BaseCrossValidator):
     """Leave-one-DGGS-cell-out cross-validator.
 
     Each observation is indexed to a discrete global grid system (DGGS) cell.
@@ -51,15 +50,34 @@ class LeaveCellOut(BaseEstimator):
 
     Examples
     --------
-    >>> lco = LeaveCellOut(grid="h3", resolution=3)
-    >>> for train_idx, test_idx in lco.split(gdf):
-    ...     model.fit(X[train_idx], y[train_idx])
-    ...     score = model.score(X[test_idx], y[test_idx])
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
+    >>> from spml.validation import LeaveCellOut
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc'))
+    >>> lco = LeaveCellOut(grid="h3", resolution=4)
+    >>> for i, (train_index, test_index) in enumerate(lco.split(gdf)):
+    ...     print(f"Fold {i}:")
+    ...     print(f"  Train: index={train_index}")
+    ...     print(f"  Test:  index={test_index}")
+    Fold 0:
+      Train: index=[ 0  1  2 16 40 41 42 45 46 47 48 49 50 51 52 53 54]
+      Test:  index=[ 3  4  5  6  7  8  9 10 11 12 13 14 15 17 18 19 20 21 22 23 24 25 26 27
+     28 29 30 31 32 33 34 35 36 37 38 39 43 44]
+    Fold 1:
+      Train: index=[ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 17 18 19 20 21 22 23 24
+     25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48
+     49 50 51 52 53 54]
+      Test:  index=[16]
+    Fold 2:
+      Train: index=[ 3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+     27 28 29 30 31 32 33 34 35 36 37 38 39 43 44]
+      Test:  index=[ 0  1  2 40 41 42 45 46 47 48 49 50 51 52 53 54]
 
     Cells with fewer than 5 observations are kept only in training:
 
     >>> lco = LeaveCellOut(grid="h3", resolution=4, min_test_size=5)
-    """
+    """  # noqa: E501
 
     def __init__(self, grid: str = "h3", resolution=None, min_test_size: int = 1):
         self.grid = grid
@@ -70,13 +88,13 @@ class LeaveCellOut(BaseEstimator):
         for res in _RES_RANGES[self.grid]:
             cells = _assign_cells(lonlat, self.grid, res)
             if len(set(cells)) >= 2:
-                return res
+                return res, cells
         raise ValueError(
             f"No {self.grid!r} resolution yields >= 2 occupied cells. "
             "Try a different grid."
         )
 
-    def split(self, X, y=None, groups=None):
+    def split(self, X, y=None, groups=None):  # noqa: ARG002
         """Yield ``(train_indices, test_indices)`` for each occupied DGGS cell.
 
         Parameters
@@ -99,41 +117,37 @@ class LeaveCellOut(BaseEstimator):
         lonlat = _to_lonlat(X)
         n = len(lonlat)
 
-        res = (
-            self.resolution
-            if self.resolution is not None
-            else self._auto_resolution(lonlat)
-        )
-        self.resolution_ = res
-
-        cell_ids = _assign_cells(lonlat, self.grid, res)
+        if self.resolution is not None:
+            self.resolution_ = self.resolution
+            cell_ids = _assign_cells(lonlat, self.grid, self.resolution)
+        else:
+            res, cell_ids = self._auto_resolution(lonlat)
+            self.resolution_ = res
         self.cell_ids_ = cell_ids
 
-        unique_cells, counts = numpy.unique(cell_ids, return_counts=True)
+        unique_cells, counts = np.unique(cell_ids, return_counts=True)
         test_cells = unique_cells[counts >= self.min_test_size]
         self.n_cells_ = len(test_cells)
 
-        indices = numpy.arange(n)
+        indices = np.arange(n)
 
         for cell in test_cells:
             test = indices[cell_ids == cell]
             train = indices[cell_ids != cell]
             yield train, test
 
-    def get_n_splits(self, X=None, y=None, groups=None) -> int:
+    def get_n_splits(self, X=None, y=None, groups=None) -> int:  # noqa: ARG002
         if hasattr(self, "n_cells_"):
             return self.n_cells_
         if X is not None:
             if self.grid not in _GRIDS:
                 raise ValueError(f"grid must be one of {_GRIDS}, got {self.grid!r}")
             lonlat = _to_lonlat(X)
-            res = (
-                self.resolution
-                if self.resolution is not None
-                else self._auto_resolution(lonlat)
-            )
-            cell_ids = _assign_cells(lonlat, self.grid, res)
-            _, counts = numpy.unique(cell_ids, return_counts=True)
+            if self.resolution is not None:
+                cell_ids = _assign_cells(lonlat, self.grid, self.resolution)
+            else:
+                _, cell_ids = self._auto_resolution(lonlat)
+            _, counts = np.unique(cell_ids, return_counts=True)
             return int((counts >= self.min_test_size).sum())
         raise ValueError(
             "Call split() first or pass X to determine the number of cells."

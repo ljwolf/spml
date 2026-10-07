@@ -1,11 +1,11 @@
-import pytest
 import geopandas
-from shapely.geometry import box, LineString
+import pytest
+from shapely.geometry import LineString, box
 
 from spml.validation import MultinomialSampler
 
-
 # -- Basic counts --------------------------------------------------------------
+
 
 def test_total_is_exact(multinomial_gdf):
     """Multinomial always returns exactly n_samples."""
@@ -26,6 +26,7 @@ def test_class_label_column(multinomial_gdf):
 
 # -- Multinomial allocation ----------------------------------------------------
 
+
 def test_equal_class_weights_give_approx_equal_counts(multinomial_gdf):
     """Class A total weight == class B total weight -> roughly 50/50 split."""
     pts = MultinomialSampler(n_samples=2000, random_state=0).sample(
@@ -38,11 +39,13 @@ def test_equal_class_weights_give_approx_equal_counts(multinomial_gdf):
 
 def test_skewed_weights_skew_counts():
     """Class A weight 1, class B weight 9 -> class B gets ~90 % of samples."""
-    gdf = geopandas.GeoDataFrame({
-        "class":   ["A", "B"],
-        "weight":  [1.0, 9.0],
-        "geometry": [box(0, 0, 5, 5), box(5, 0, 10, 5)],
-    })
+    gdf = geopandas.GeoDataFrame(
+        {
+            "class": ["A", "B"],
+            "weight": [1.0, 9.0],
+            "geometry": [box(0, 0, 5, 5), box(5, 0, 10, 5)],
+        }
+    )
     pts = MultinomialSampler(n_samples=2000, random_state=0).sample(
         gdf.geometry, gdf["class"], gdf["weight"]
     )
@@ -62,11 +65,13 @@ def test_no_weights_defaults_to_count(multinomial_gdf):
 
 
 def test_total_always_exact_multiple_n():
-    gdf = geopandas.GeoDataFrame({
-        "class":   ["A", "B", "C"],
-        "weight":  [1.0, 2.0, 7.0],
-        "geometry": [box(i, 0, i + 1, 1) for i in range(3)],
-    })
+    gdf = geopandas.GeoDataFrame(
+        {
+            "class": ["A", "B", "C"],
+            "weight": [1.0, 2.0, 7.0],
+            "geometry": [box(i, 0, i + 1, 1) for i in range(3)],
+        }
+    )
     for n in [1, 7, 50, 99, 100, 200]:
         pts = MultinomialSampler(n_samples=n, random_state=0).sample(
             gdf.geometry, gdf["class"], gdf["weight"]
@@ -75,6 +80,7 @@ def test_total_always_exact_multiple_n():
 
 
 # -- Error handling ------------------------------------------------------------
+
 
 def test_no_labels_raises(multinomial_gdf):
     with pytest.raises(ValueError, match="labels"):
@@ -85,10 +91,13 @@ def test_all_zero_weights_raises(multinomial_gdf):
     gdf = multinomial_gdf.copy()
     gdf["weight"] = 0.0
     with pytest.raises(ValueError, match="zero"):
-        MultinomialSampler(n_samples=100).sample(gdf.geometry, gdf["class"], gdf["weight"])
+        MultinomialSampler(n_samples=100).sample(
+            gdf.geometry, gdf["class"], gdf["weight"]
+        )
 
 
 # -- Input types ---------------------------------------------------------------
+
 
 def test_geodataframe_input(multinomial_gdf):
     pts = MultinomialSampler(n_samples=50, random_state=0).sample(
@@ -107,11 +116,13 @@ def test_numpy_array_inputs(multinomial_gdf):
 
 
 def test_line_geodataframe():
-    gdf = geopandas.GeoDataFrame({
-        "class":   ["A", "B"],
-        "weight":  [3.0, 7.0],
-        "geometry": [LineString([(0, 0), (5, 0)]), LineString([(0, 1), (5, 1)])],
-    })
+    gdf = geopandas.GeoDataFrame(
+        {
+            "class": ["A", "B"],
+            "weight": [3.0, 7.0],
+            "geometry": [LineString([(0, 0), (5, 0)]), LineString([(0, 1), (5, 1)])],
+        }
+    )
     pts = MultinomialSampler(n_samples=1000, random_state=0).sample(
         gdf.geometry, gdf["class"], gdf["weight"]
     )
@@ -120,16 +131,22 @@ def test_line_geodataframe():
 
 # -- Reproducibility -----------------------------------------------------------
 
+
 def test_reproducible(multinomial_gdf):
     s1 = MultinomialSampler(n_samples=500, random_state=99)
     s2 = MultinomialSampler(n_samples=500, random_state=99)
-    pts1 = s1.sample(multinomial_gdf.geometry, multinomial_gdf["class"], multinomial_gdf["weight"])
-    pts2 = s2.sample(multinomial_gdf.geometry, multinomial_gdf["class"], multinomial_gdf["weight"])
+    pts1 = s1.sample(
+        multinomial_gdf.geometry, multinomial_gdf["class"], multinomial_gdf["weight"]
+    )
+    pts2 = s2.sample(
+        multinomial_gdf.geometry, multinomial_gdf["class"], multinomial_gdf["weight"]
+    )
     assert len(pts1) == len(pts2)
     assert list(pts1.geometry.x) == list(pts2.geometry.x)
 
 
 # -- sklearn API ---------------------------------------------------------------
+
 
 def test_sklearn_get_params():
     p = MultinomialSampler(n_samples=300).get_params()

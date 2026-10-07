@@ -7,14 +7,14 @@ References
    40(8): 913-929. https://doi.org/10.1111/ecog.02881
 """
 
-import numpy
-
-from sklearn.base import BaseEstimator, clone
+import numpy as np
+from sklearn.base import clone
+from sklearn.model_selection import BaseCrossValidator
 
 from ._utils import _assign_noise_to_nearest, _get_coords
 
 
-class LeaveClusterOut(BaseEstimator):
+class LeaveClusterOut(BaseCrossValidator):
     """Leave-one-cluster-out cross-validator.
 
     Fits a user-supplied clustering estimator to the input locations, then
@@ -60,20 +60,44 @@ class LeaveClusterOut(BaseEstimator):
 
     Examples
     --------
+    >>> import geopandas as gpd
+    >>> from geodatasets import get_path
     >>> from sklearn.cluster import KMeans
-    >>> lco = LeaveClusterOut(KMeans(n_clusters=10, random_state=0))
-    >>> for train_idx, test_idx in lco.split(gdf):
-    ...     model.fit(X[train_idx], y[train_idx])
-    ...     score = model.score(X[test_idx], y[test_idx])
+    >>> from spml.validation import LeaveClusterOut
+
+    >>> gdf = gpd.read_file(get_path('geoda.nyc'))
+    >>> lco = LeaveClusterOut(KMeans(n_clusters=5, random_state=0))
+    >>> for i, (train_index, test_index) in enumerate(lco.split(gdf)):
+    ...     print(f"Fold {i}:")
+    ...     print(f"  Train: index={train_index}")
+    ...     print(f"  Test:  index={test_index}")
+    Fold 0:
+      Train: index=[ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 25
+     37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54]
+      Test:  index=[23 24 26 27 28 29 30 31 32 33 34 35 36]
+    Fold 1:
+      Train: index=[ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 17 18 19 20 21 22 23 24
+     25 26 27 28 29 30 31 32 33 34 35 36 37]
+      Test:  index=[16 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54]
+    Fold 2:
+      Train: index=[ 0  1  2  3  4 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34
+     35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54]
+      Test:  index=[ 5  6  7  8  9 10 11 12 13 14 15]
+    Fold 3:
+      Train: index=[ 3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+     27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50
+     51 52 53 54]
+      Test:  index=[0 1 2]
+    Fold 4:
+      Train: index=[ 0  1  2  5  6  7  8  9 10 11 12 13 14 15 16 23 24 26 27 28 29 30 31 32
+     33 34 35 36 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54]
+      Test:  index=[ 3  4 17 18 19 20 21 22 25 37]
 
     With HDBSCAN and noise points excluded from training:
 
     >>> from sklearn.cluster import HDBSCAN
-    >>> lco = LeaveClusterOut(HDBSCAN(min_cluster_size=20), noise="drop")
-    >>> for train_idx, test_idx in lco.split(gdf):
-    ...     model.fit(X[train_idx], y[train_idx])
-    ...     score = model.score(X[test_idx], y[test_idx])
-    """
+    >>> lco = LeaveClusterOut(HDBSCAN(min_cluster_size=3, copy=True), noise="drop")
+    """  # noqa: E501
 
     _VALID_NOISE = ("train_only", "drop", "nearest")
 
@@ -82,7 +106,7 @@ class LeaveClusterOut(BaseEstimator):
         self.noise = noise
         self.noise_label = noise_label
 
-    def split(self, X, y=None, groups=None):
+    def split(self, X, y=None, groups=None):  # noqa: ARG002
         """Yield ``(train_indices, test_indices)`` for each cluster.
 
         Parameters
@@ -104,35 +128,39 @@ class LeaveClusterOut(BaseEstimator):
 
         if hasattr(self.clusterer, "labels_"):
             self.clusterer_ = self.clusterer
-            labels = numpy.asarray(self.clusterer.labels_, dtype=int)
+            labels = np.asarray(self.clusterer.labels_, dtype=int)
             if len(labels) != n:
                 raise ValueError(
                     f"Pre-fitted clusterer has {len(labels)} labels but X has {n} rows."
                 )
         else:
             self.clusterer_ = clone(self.clusterer).fit(coords)
-            labels = numpy.asarray(self.clusterer_.labels_, dtype=int)
+            labels = np.asarray(self.clusterer_.labels_, dtype=int)
 
         self.labels_ = labels
 
         if self.noise == "nearest":
-            labels = _assign_noise_to_nearest(coords, labels, self.noise_label, clusterer=self.clusterer_)
+            labels = _assign_noise_to_nearest(
+                coords, labels, self.noise_label, clusterer=self.clusterer_
+            )
 
-        all_labels = numpy.unique(labels)
+        all_labels = np.unique(labels)
         non_noise = all_labels[all_labels != self.noise_label]
         self.n_clusters_ = len(non_noise)
 
-        indices = numpy.arange(n)
+        indices = np.arange(n)
 
         for label in non_noise:
             test = indices[labels == label]
             if self.noise == "drop":
                 train = indices[(labels != label) & (labels != self.noise_label)]
-            else:  # 'train_only' or 'nearest' (nearest: no noise remains after reassignment)
+            else:
+                # 'train_only' or 'nearest' (nearest: no noise remains after
+                # reassignment)
                 train = indices[labels != label]
             yield train, test
 
-    def get_n_splits(self, X=None, y=None, groups=None) -> int:
+    def get_n_splits(self, X=None, y=None, groups=None) -> int:  # noqa: ARG002
         if hasattr(self, "n_clusters_"):
             return self.n_clusters_
         raise ValueError(

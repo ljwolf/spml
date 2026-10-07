@@ -11,11 +11,17 @@ dependencies:
   - scikit-learn
   - joblib
   - esda
+  # optional
+  - h3-py
+  - healpy
+  - s2sphere
+  - rasterio
   # testing
   - geodatasets
   - mgwr
   # docs
   - pandarm
+  - esda
   - ipykernel
   - myst-nb
   - sphinx
@@ -23,3 +29,6 @@ dependencies:
   - sphinx-autosummary-accessors
   - sphinx-copybutton
   - sphinx-immaterial
+  - pip
+  - pip:
+    - pya5

@@ -5,17 +5,17 @@ import pytest
 from shapely.geometry import LineString
 
 from spml.validation import (
-    PointSampler,
     ConstantClassSampler,
-    StratifiedClassSampler,
     MultinomialSampler,
+    PointSampler,
+    StratifiedClassSampler,
 )
-
 
 SEQS = ["sobol", "halton", "r2"]
 
 
 # -- Invalid sequence name -----------------------------------------------------
+
 
 def test_invalid_sequence_raises(square):
     with pytest.raises(ValueError, match="quasi_random"):
@@ -23,6 +23,7 @@ def test_invalid_sequence_raises(square):
 
 
 # -- PointSampler -- polygon ----------------------------------------------------
+
 
 @pytest.mark.parametrize("seq", SEQS)
 def test_point_polygon_count(square, seq):
@@ -39,13 +40,15 @@ def test_point_polygon_all_inside(square, seq):
 @pytest.mark.parametrize("seq", SEQS)
 def test_point_concave_polygon(seq):
     from shapely.geometry import Polygon
-    l_shape = Polygon([(0,0),(10,0),(10,5),(5,5),(5,10),(0,10)])
+
+    l_shape = Polygon([(0, 0), (10, 0), (10, 5), (5, 5), (5, 10), (0, 10)])
     pts = PointSampler(n_samples=150, quasi_random=seq, random_state=0).sample(l_shape)
     assert len(pts) == 150
     assert all(l_shape.contains(p) for p in pts.geometry)
 
 
 # -- PointSampler -- line -------------------------------------------------------
+
 
 @pytest.mark.parametrize("seq", SEQS)
 def test_point_line_count(seq):
@@ -64,6 +67,7 @@ def test_point_line_on_line(seq):
 
 # -- Reproducibility -----------------------------------------------------------
 
+
 @pytest.mark.parametrize("seq", SEQS)
 def test_reproducible(square, seq):
     pts1 = PointSampler(100, quasi_random=seq, random_state=7).sample(square)
@@ -79,9 +83,9 @@ def test_different_seeds_differ(square):
 
 
 def test_different_sequences_differ(square):
-    pts_s = PointSampler(50, quasi_random="sobol",  random_state=0).sample(square)
+    pts_s = PointSampler(50, quasi_random="sobol", random_state=0).sample(square)
     pts_h = PointSampler(50, quasi_random="halton", random_state=0).sample(square)
-    pts_r = PointSampler(50, quasi_random="r2",     random_state=0).sample(square)
+    pts_r = PointSampler(50, quasi_random="r2", random_state=0).sample(square)
     xs = [list(p.geometry.x) for p in (pts_s, pts_h, pts_r)]
     assert xs[0] != xs[1]
     assert xs[0] != xs[2]
@@ -90,11 +94,12 @@ def test_different_sequences_differ(square):
 
 def test_qrn_differs_from_random(square):
     pts_rng = PointSampler(50, quasi_random=None, random_state=0).sample(square)
-    pts_qrn = PointSampler(50, quasi_random="r2",  random_state=0).sample(square)
+    pts_qrn = PointSampler(50, quasi_random="r2", random_state=0).sample(square)
     assert list(pts_rng.geometry.x) != list(pts_qrn.geometry.x)
 
 
 # -- Uniformity ----------------------------------------------------------------
+
 
 def test_qrn_more_uniform_than_random(square):
     n, cells = 500, 5
@@ -109,11 +114,14 @@ def test_qrn_more_uniform_than_random(square):
         return counts.var()
 
     var_rng = grid_variance(PointSampler(n, random_state=0).sample(square))
-    var_qrn = grid_variance(PointSampler(n, quasi_random="halton", random_state=0).sample(square))
+    var_qrn = grid_variance(
+        PointSampler(n, quasi_random="halton", random_state=0).sample(square)
+    )
     assert var_qrn < var_rng
 
 
 # -- Class samplers ------------------------------------------------------------
+
 
 @pytest.mark.parametrize("seq", SEQS)
 def test_constant_class_sampler(class_gdf, seq):
@@ -126,9 +134,9 @@ def test_constant_class_sampler(class_gdf, seq):
 
 @pytest.mark.parametrize("seq", SEQS)
 def test_stratified_class_sampler(class_gdf, seq):
-    pts = StratifiedClassSampler(n_samples=100, quasi_random=seq, random_state=0).sample(
-        class_gdf.geometry, class_gdf["class"], class_gdf["value"]
-    )
+    pts = StratifiedClassSampler(
+        n_samples=100, quasi_random=seq, random_state=0
+    ).sample(class_gdf.geometry, class_gdf["class"], class_gdf["value"])
     assert len(pts) == 100
     counts = pts.groupby("class_label").size()
     assert counts["A"] == 50
@@ -145,6 +153,7 @@ def test_multinomial_sampler(multinomial_gdf, seq):
 
 
 # -- sklearn API ---------------------------------------------------------------
+
 
 def test_get_params_includes_quasi_random():
     s = PointSampler(n_samples=100, quasi_random="sobol", random_state=1)

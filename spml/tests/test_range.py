@@ -1,6 +1,6 @@
+import geopandas
 import numpy
 import pytest
-import geopandas
 from shapely.geometry import Point
 
 from spml.validation import correlogram_range, knn_range
@@ -12,7 +12,9 @@ def line_data():
     rng = numpy.random.default_rng(0)
     gdf = geopandas.GeoDataFrame(geometry=[Point(i, 0) for i in range(20)])
     # Strong local autocorrelation: y_i correlated with nearby y_j
-    y = numpy.array([numpy.exp(-0.1 * i) + 0.1 * rng.standard_normal() for i in range(20)])
+    y = numpy.array(
+        [numpy.exp(-0.1 * i) + 0.1 * rng.standard_normal() for i in range(20)]
+    )
     return gdf, y
 
 
@@ -23,11 +25,16 @@ def grid_data():
     pts = [Point(i, j) for i in range(5) for j in range(5)]
     gdf = geopandas.GeoDataFrame(geometry=pts)
     coords = numpy.array([(p.x, p.y) for p in pts])
-    y = numpy.sin(coords[:, 0]) + numpy.cos(coords[:, 1]) + 0.05 * rng.standard_normal(25)
+    y = (
+        numpy.sin(coords[:, 0])
+        + numpy.cos(coords[:, 1])
+        + 0.05 * rng.standard_normal(25)
+    )
     return gdf, y
 
 
 # -- correlogram_range ---------------------------------------------------------
+
 
 @pytest.mark.filterwarnings("ignore:correlogram_range:UserWarning")
 def test_correlogram_returns_float(line_data):
@@ -93,6 +100,7 @@ def test_correlogram_subsampling(grid_data):
 
 # -- knn_range -----------------------------------------------------------------
 
+
 def test_knn_returns_int(grid_data):
     gdf, y = grid_data
     k = knn_range(gdf, y)
@@ -110,7 +118,7 @@ def test_knn_range_plausible(grid_data):
 def test_knn_range_no_crossing_warns():
     """Strongly autocorrelated data over a small dataset: may not drop to zero."""
     gdf = geopandas.GeoDataFrame(geometry=[Point(i, 0) for i in range(10)])
-    y = numpy.arange(10, dtype=float)   # perfectly ordered -- very high autocorrelation
+    y = numpy.arange(10, dtype=float)  # perfectly ordered -- very high autocorrelation
     with pytest.warns(UserWarning, match="did not drop to zero"):
         k = knn_range(gdf, y, max_k=5)
     assert k == 5
@@ -137,12 +145,16 @@ def test_knn_length_mismatch_raises(grid_data):
 
 # -- integration: use as bandwidth/threshold -----------------------------------
 
+
 @pytest.mark.filterwarnings("ignore:correlogram_range:UserWarning")
 def test_correlogram_range_as_bandwidth(line_data):
     from spml.validation import LocalBootstrap
+
     gdf, y = line_data
     bw = correlogram_range(gdf, y, random_state=0)
-    boots = list(LocalBootstrap(bandwidth=bw, n_bootstraps=5, random_state=0).sample(gdf))
+    boots = list(
+        LocalBootstrap(bandwidth=bw, n_bootstraps=5, random_state=0).sample(gdf)
+    )
     assert len(boots) == 5
     assert all(b.shape == (len(gdf),) for b in boots)
 
@@ -150,7 +162,10 @@ def test_correlogram_range_as_bandwidth(line_data):
 @pytest.mark.filterwarnings("ignore:correlogram_range:UserWarning")
 def test_correlogram_range_as_threshold(line_data):
     from spml.validation import LocalPermutation
+
     gdf, y = line_data
     d = correlogram_range(gdf, y, random_state=0)
-    perms = list(LocalPermutation(bandwidth=d, n_permutations=3, random_state=0).sample(gdf))
+    perms = list(
+        LocalPermutation(bandwidth=d, n_permutations=3, random_state=0).sample(gdf)
+    )
     assert len(perms) == 3
