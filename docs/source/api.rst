@@ -118,5 +118,15 @@ re-exported here.
 .. autosummary::
    :toctree: generated/
 
+   areal_entropy
    area_of_applicability
+   boundary_silhouette
+   completeness
+   correlogram
+   correlogram_range
    gearygram
+   homogeneity
+   knn_range
+   overlay_entropy
+   path_silhouette
+   v_measure

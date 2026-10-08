@@ -19,7 +19,6 @@ bandwidth_search
 network_graph
 sklearn_compatibility
 mgwr_comparison
-references
 ```
 
 ```{toctree}
@@ -58,5 +57,5 @@ api
 contributing
 GitHub <https://github.com/pysal/spml>
 Changelog <https://github.com/pysal/spml/releases>
-
+references
 ```
