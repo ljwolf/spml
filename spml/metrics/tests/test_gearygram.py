@@ -67,7 +67,7 @@ def test_values(data, case):
     kwargs, centers, C, n_pairs = EXPECTED[case]
     if not case.endswith("_multi"):
         X = X[:, 0]
-    res = gearygram(X, coords, **kwargs)
+    res = gearygram(X, coords, **kwargs)  # ty:ignore[invalid-argument-type]
     np.testing.assert_allclose(res.bin_centers, centers, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(res.C, C, rtol=1e-6, equal_nan=True)
     if n_pairs is None:
