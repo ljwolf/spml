@@ -235,7 +235,7 @@ def gearygram(
 
     # --- bandwidth path -------------------------------------------------------
     if max_distance is None:
-        max_distance = _pdist(coords).max()
+        max_distance = float(_pdist(coords).max())
 
     bins = numpy.linspace(0.0, max_distance, n_bins + 1)
     bin_centers = 0.5 * (bins[:-1] + bins[1:])
