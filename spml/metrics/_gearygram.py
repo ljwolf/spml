@@ -16,6 +16,8 @@ from __future__ import annotations
 import warnings
 
 import numpy
+import scipy
+from packaging.version import Version
 from sklearn.utils import Bunch
 
 from ..validation._utils import KERNELS, _get_coords
@@ -244,9 +246,14 @@ def gearygram(
 
     if kernel in _COMPACT_KERNELS:
         # only pairs within max_distance ever get nonzero weight; build once
-        sp = tree.sparse_distance_matrix(
-            tree, max_distance=max_distance, output_type="coo_array"
-        )
+        if Version(scipy.__version__) >= Version("1.18"):
+            sp = tree.sparse_distance_matrix(
+                tree, max_distance=max_distance, output_type="coo_array"
+            )
+        else:
+            sp = tree.sparse_distance_matrix(
+                tree, max_distance=max_distance, output_type="coo_matrix"
+            )
         rows = numpy.asarray(sp.row)
         cols = numpy.asarray(sp.col)
         d = numpy.asarray(sp.data, dtype=float)
