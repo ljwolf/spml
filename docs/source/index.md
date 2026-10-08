@@ -42,6 +42,7 @@ validation/range_finding
 ```{toctree}
 :hidden:
 :caption: Metrics
+metrics/area_of_applicability
 metrics/gearygram
 ```
 
