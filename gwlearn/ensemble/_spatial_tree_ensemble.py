@@ -271,16 +271,27 @@ def _find_cut(
     return best_deletion, base_total
 
 
+def _holds_out(n, fraction):
+    """True if a region of `n` rows can hold out `fraction` of them and keep the rest; false otherwise."""
+    if fraction == 0:
+        return True
+    n_val = int(round(n * fraction))
+    return 1 <= n_val < n
+
+
 def _leaf_split(idx, fraction, rng):
     """
     Partition a region's row indices into ``(fit, val)`` for applying ``split_tolerance``.
 
-    Returns ``(fit_idx, None)`` when the region is too small to spare a
-    held-out row, so the caller applies ``split_tolerance`` in sample for it.
+    Raises ``ValueError`` if the region can't hold out `fraction` of its rows.
+    Callers treat such a region as below the quota, so this never happens
+    during a fit.
     """
+    if not _holds_out(len(idx), fraction):
+        raise ValueError(
+            f"A region of {len(idx)} rows can't hold out a fraction of {fraction}."
+        )
     n_val = int(round(len(idx) * fraction))
-    if n_val < 1 or n_val >= len(idx):
-        return idx, None
     perm = rng.permutation(idx)
     return perm[n_val:], perm[:n_val]
 
@@ -351,6 +362,8 @@ class SpatialTreeEnsemble(BaseEstimator):
         improve out of sample. The cut is
         always *proposed* in-sample; this only changes accept/reject. Accepted
         regions are refit on their full support for prediction.
+        A child that can't hold out this fraction of its rows (at least one
+        row out and one row kept) counts as below ``min_leaf_size``.
     random_state : int, np.random.Generator or None (default None)
         Seeds the per-region holdout split when ``validation_fraction > 0``.
     """
@@ -430,7 +443,11 @@ class SpatialTreeEnsemble(BaseEstimator):
                 return
             in_node, out_node = int(cut.in_node), int(cut.out_node)
             A_idx, B_idx = _split_sides(MSF, labels, lbl, in_node, out_node)
-            if len(A_idx) < self.min_leaf_size or len(B_idx) < self.min_leaf_size:
+            if any(
+                len(side) < self.min_leaf_size
+                or not _holds_out(len(side), self.validation_fraction)
+                for side in (A_idx, B_idx)
+            ):
                 return
             parent_model = region_model[lbl]
 

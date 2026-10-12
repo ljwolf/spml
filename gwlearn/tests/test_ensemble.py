@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from gwlearn.ensemble import (
     GWGradientBoostingClassifier,
@@ -348,3 +349,47 @@ def test_quadtree_boosting_classifier_deep_leaf_labels():
     labels = model._query(coords)
     assert set(labels.tolist()) <= set(model.leaves_)
     assert model.predict(X, coords).shape == (80,)
+
+
+def test_holds_out():
+    from gwlearn.ensemble._spatial_tree_ensemble import _holds_out, _leaf_split
+
+    assert _holds_out(3, 0.0)
+    assert _holds_out(10, 0.2)
+    assert not _holds_out(10, 0.01)  # rounds to zero held-out rows
+    assert not _holds_out(1, 0.9)  # rounds to every row held out
+    with pytest.raises(ValueError, match="can't hold out"):
+        _leaf_split(np.arange(10), 0.01, np.random.default_rng(0))
+
+
+@pytest.mark.parametrize("ensemble_cls", [KDTreeEnsembleRegressor, QuadtreeEnsembleRegressor])
+def test_index_rejects_split_without_holdout(sample_regression_data, ensemble_cls):  # noqa: F811
+    """A child that can't hold rows out is below the quota, so it isn't accepted."""
+    X, y, geometry = sample_regression_data
+    coords = np.c_[geometry.x, geometry.y]
+
+    in_sample = ensemble_cls(min_leaf_size=5, pbar=False).fit(X, y, coords)
+    # every child of the 85-row root holds fewer than 50 rows, so 1% rounds to 0
+    no_holdout = ensemble_cls(
+        min_leaf_size=5, pbar=False, validation_fraction=0.01, random_state=0
+    ).fit(X, y, coords)
+
+    assert in_sample.n_leaves > 1
+    assert no_holdout.n_leaves == 1
+
+
+def test_spatialtree_rejects_cut_without_holdout(sample_regression_data):  # noqa: F811
+    """A side that can't hold rows out is below the quota, so no cut is made."""
+    from libpysal.graph import Graph
+
+    X, y, geometry = sample_regression_data
+    coords = np.c_[geometry.x, geometry.y]
+    graph = Graph.build_triangulation(geometry, kernel="identity")
+
+    in_sample = SpatialTreeRegressor(graph=graph, min_leaf_size=5).fit(X, y, coords)
+    no_holdout = SpatialTreeRegressor(
+        graph=graph, min_leaf_size=5, validation_fraction=0.01, random_state=0
+    ).fit(X, y, coords)
+
+    assert in_sample.n_leaves > 1
+    assert no_holdout.n_leaves == 1

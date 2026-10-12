@@ -19,7 +19,7 @@ from ._spatial_index_utils import (
     _RandomSplitNode,
     _OptimalSplitNode,
 )
-from ._spatial_tree_ensemble import _leaf_split
+from ._spatial_tree_ensemble import _holds_out, _leaf_split
 
 
 def _neg_mean_squared_error(y_true, y_pred):
@@ -62,6 +62,8 @@ class SpatialIndexEnsemble:
         improve out of sample. The split
         location is always chosen in-sample; this only changes accept/reject.
         The leaf's stored model is always fit on the full leaf for prediction.
+        A child that can't hold out this fraction of its rows (at least one
+        row out and one row kept) counts as below `min_leaf_size`.
     random_state : int, numpy.random.Generator or None (default: None)
         Seeds the per-leaf holdout split when ``validation_fraction > 0``.
     pbar : bool (default: True)
@@ -117,26 +119,39 @@ class SpatialIndexEnsemble:
 
         In-sample by default. When ``validation_fraction > 0`` the child model is
         refit on a training slice and both models are scored on the held-out
-        slice, so the gain reflects out-of-sample improvement. Falls back to the
-        in-sample scoring for leaves too small to spare a held-out row.
+        slice, so the gain reflects out-of-sample improvement.
         """
-        if self.validation_fraction > 0 and split.model_ is not None:
+        if self.validation_fraction > 0:
+            if split.model_ is None:
+                return -numpy.inf
             fit_pos, val_pos = _leaf_split(
                 numpy.arange(split.size), self.validation_fraction, self._rng
             )
-            if val_pos is not None:
-                child = clone(split._model).fit(split.X[fit_pos], split.y[fit_pos])
-                child_score = split._score_function(
-                    split.y[val_pos], child.predict(split.X[val_pos])
-                )
-                parent_score = split._score_function(
-                    split.y[val_pos], cell.prediction_[split.parent_mask][val_pos]
-                )
-                return child_score - parent_score
+            child = clone(split._model).fit(split.X[fit_pos], split.y[fit_pos])
+            child_score = split._score_function(
+                split.y[val_pos], child.predict(split.X[val_pos])
+            )
+            parent_score = split._score_function(
+                split.y[val_pos], cell.prediction_[split.parent_mask][val_pos]
+            )
+            return child_score - parent_score
         parent_score = cell._score_function(
             cell.y[split.parent_mask], cell.prediction_[split.parent_mask]
         )
         return split.score_ - parent_score
+
+    def _below_floor(self, split):
+        """
+        True if a child violates the depth or size floor; false otherwise.
+
+        A child that can't hold out `validation_fraction` of its rows is below
+        the size floor.
+        """
+        return (
+            (self.max_depth is not None and split.depth > self.max_depth)
+            or split.size <= self.min_leaf_size
+            or not _holds_out(split.size, self.validation_fraction)
+        )
 
     def _evaluate_splits(self, cell):
         """
@@ -153,8 +168,7 @@ class SpatialIndexEnsemble:
         """
         retained = []
         for split in self._candidate_splits(cell):
-            if ((self.max_depth is not None and split.depth > self.max_depth)
-                    or split.size <= self.min_leaf_size):
+            if self._below_floor(split):
                 self._update_leaf(cell)
                 continue
             if self._split_gain(cell, split) >= self.split_tolerance:
@@ -375,11 +389,7 @@ class KDTreeEnsemble(SpatialIndexEnsemble):
         min_samples_leaf semantics.
         """
         splits = self._candidate_splits(cell)
-        if any(
-            (self.max_depth is not None and split.depth > self.max_depth)
-            or split.size <= self.min_leaf_size
-            for split in splits
-        ):
+        if any(self._below_floor(split) for split in splits):
             self._update_leaf(cell)
             return []
         retained = []
