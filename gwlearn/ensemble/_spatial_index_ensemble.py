@@ -54,11 +54,12 @@ class SpatialIndexEnsemble:
         `split_tolerance` and `min_leaf_size`.  When finite, the cap is a ceiling
         enforced in the index's depth-first growth order.
     validation_fraction : float (default: 0.0)
-        Proportion of each child leaf held out to gate the split. With ``0.0``
-        the `split_tolerance` gate is in-sample (a child is scored on its own
-        training rows). With a value in ``(0.0, 1.0)`` the child's model is
-        refit on the remaining rows and the gate compares it against the parent
-        on the held-out rows, so the split must improve out-of-sample. The split
+        Proportion of each child leaf held out when `split_tolerance` is
+        applied. With ``0.0``, the `split_tolerance` is applied in sample (a
+        child is scored on its own training rows). With a value in
+        ``(0.0, 1.0)``, the child's model is refit on the remaining rows and
+        compared with the parent on the held-out rows, so the split must
+        improve out of sample. The split
         location is always chosen in-sample; this only changes accept/reject.
         The leaf's stored model is always fit on the full leaf for prediction.
     random_state : int, numpy.random.Generator or None (default: None)
@@ -112,12 +113,12 @@ class SpatialIndexEnsemble:
 
     def _split_gain(self, cell, split):
         """
-        Improvement of the child's local model over the parent on the gate set.
+        Improvement of the child's local model over the parent on the scored rows.
 
         In-sample by default. When ``validation_fraction > 0`` the child model is
         refit on a training slice and both models are scored on the held-out
         slice, so the gain reflects out-of-sample improvement. Falls back to the
-        in-sample gate for leaves too small to spare a held-out row.
+        in-sample scoring for leaves too small to spare a held-out row.
         """
         if self.validation_fraction > 0 and split.model_ is not None:
             fit_pos, val_pos = _leaf_split(

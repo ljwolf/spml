@@ -195,7 +195,7 @@ def test_gwrf_regressor_fit_basic(sample_regression_data):  # noqa: F811
 
 
 def test_kdtree_validation_fraction(sample_regression_data):  # noqa: F811
-    """validation_fraction=0 reproduces the default gate; >0 is no less conservative."""
+    """validation_fraction=0 reproduces the in-sample default; >0 is no less conservative."""
     X, y, geometry = sample_regression_data
     coords = np.c_[geometry.x, geometry.y]
 
@@ -209,12 +209,12 @@ def test_kdtree_validation_fraction(sample_regression_data):  # noqa: F811
 
     # explicit 0.0 must be identical to the in-sample default
     np.testing.assert_array_equal(default.labels_, explicit_zero.labels_)
-    # the out-of-sample gate can only ever reject more splits
+    # holding rows out can only ever reject more splits
     assert held_out.n_leaves <= default.n_leaves
 
 
 def test_spatialtree_validation_fraction(sample_regression_data):  # noqa: F811
-    """validation_fraction=0 reproduces the default gate; >0 is no less conservative."""
+    """validation_fraction=0 reproduces the in-sample default; >0 is no less conservative."""
     from libpysal.graph import Graph
 
     X, y, geometry = sample_regression_data
