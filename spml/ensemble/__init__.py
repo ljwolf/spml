@@ -18,3 +18,4 @@ from ._spatial_index_boosting import (
     QuadtreeBoostingRegressor,
     KDTreeBoostingRegressor
 )
+from ._bagged import BaggedSpatialIndexEnsemble
