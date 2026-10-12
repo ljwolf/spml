@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools_scm]
 
 [project]
-name = "gwlearn"
+name = "spml"
 description = "Geographically weighted modeling based on scikit-learn."
 dynamic = ["version"]
 authors = [
@@ -31,14 +31,14 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://pysal.org/gwlearn/"
-Documentation = "https://pysal.org/gwlearn/"
-Repository = "https://github.com/pysal/gwlearn.git"
-Issues = "https://github.com/pysal/gwlearn/issues"
-Changelog = "https://github.com/pysal/gwlearn/releases"
+Homepage = "https://pysal.org/spml/"
+Documentation = "https://pysal.org/spml/"
+Repository = "https://github.com/pysal/spml.git"
+Issues = "https://github.com/pysal/spml/issues"
+Changelog = "https://github.com/pysal/spml/releases"
 
 [tool.setuptools.packages.find]
-include = ["gwlearn", "gwlearn.*"]
+include = ["spml", "spml.*"]
 
 [tool.ruff]
 line-length = 88
@@ -68,7 +68,7 @@ no-matching-overload = "ignore"
 unresolved-import = "ignore"
 
 [tool.coverage.run]
-source = ["./gwlearn"]
+source = ["./spml"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -79,7 +79,7 @@ exclude_lines = [
     "except ImportError",
 ]
 ignore_errors = true
-omit = ["gwlearn/tests/*"]
+omit = ["spml/tests/*"]
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
@@ -117,7 +117,7 @@ ty = ">=0.0.2"
 "." = "*"
 
 [tool.pixi.pypi-dependencies]
-gwlearn = { path = ".", editable = true }
+spml = { path = ".", editable = true }
 
 [tool.pytest.ini_options]
 filterwarnings = [

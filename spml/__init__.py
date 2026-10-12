@@ -5,4 +5,4 @@ from . import base, ensemble, linear_model, search, transform
 from .transform import ExternalTreeTransformer
 
 with contextlib.suppress(PackageNotFoundError):
-    __version__ = version("gwlearn")
+    __version__ = version("spml")

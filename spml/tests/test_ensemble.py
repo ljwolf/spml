@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gwlearn.ensemble import (
+from spml.ensemble import (
     GWGradientBoostingClassifier,
     GWGradientBoostingRegressor,
     GWRandomForestClassifier,
@@ -352,7 +352,7 @@ def test_quadtree_boosting_classifier_deep_leaf_labels():
 
 
 def test_holds_out():
-    from gwlearn.ensemble._spatial_tree_ensemble import _holds_out, _leaf_split
+    from spml.ensemble._spatial_tree_ensemble import _holds_out, _leaf_split
 
     assert _holds_out(3, 0.0)
     assert _holds_out(10, 0.2)

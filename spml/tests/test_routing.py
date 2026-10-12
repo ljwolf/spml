@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import pytest
 
-from gwlearn.ensemble import (
+from spml.ensemble import (
     KDTreeBoostingClassifier,
     KDTreeBoostingRegressor,
     KDTreeEnsembleRegressor,
@@ -11,7 +11,7 @@ from gwlearn.ensemble import (
     QuadtreeBoostingRegressor,
     QuadtreeEnsembleRegressor,
 )
-from gwlearn.ensemble import _spatial_index_utils
+from spml.ensemble import _spatial_index_utils
 
 
 def _grid_data(seed=0):
@@ -56,7 +56,7 @@ def test_query_outside_root_is_minus_one():
 @pytest.mark.parametrize("cls", [KDTreeBoostingClassifier, QuadtreeBoostingClassifier])
 def test_boosting_classifier_routes_split_lines_low(cls, monkeypatch):
     """Each point routes to the leaf that holds it with lower edges excluded."""
-    # KDTreeBoostingClassifier imports weighted_median from a module outside gwlearn.
+    # KDTreeBoostingClassifier imports weighted_median from a module outside spml.
     monkeypatch.setitem(sys.modules, "kdtree_regression", _spatial_index_utils)
     X, y, coords = _grid_data()
     labels = (y > 0).astype(int)
