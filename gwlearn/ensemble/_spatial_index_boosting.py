@@ -533,14 +533,33 @@ class SpatialIndexBoostingClassifier:
                 self._pbar.update(1)
 
     def _query(self, coordinates):
+        """
+        Returns the leaf index for each point, or -1 outside the root.
+
+        Each point descends from the root by the rule in `_children`, so a
+        point on a split line or plane gets the same leaf as a training row
+        at that location.
+        """
         coordinates = numpy.asarray(coordinates)
-        leaves   = sorted(self.leaves_.values(), key=lambda n: n.depth, reverse=True)
-        out      = numpy.full(len(coordinates), -1, dtype=object)
-        assigned = numpy.zeros(len(coordinates), dtype=bool)
-        for leaf in leaves:
-            hit = leaf.query(coordinates) & (~assigned)
-            out[hit] = leaf.index
-            assigned |= hit
+        children = defaultdict(dict)
+        for node in self.nodes_.values():
+            if node.parent is not None:
+                children[node.parent][node.index - node.parent * 10 - 1] = node
+
+        root = self.nodes_[0]
+        out = numpy.full(len(coordinates), -1, dtype=object)
+        stack = [(root, numpy.flatnonzero(root.query(coordinates)))]
+        while stack:
+            node, rows = stack.pop()
+            if node.index in self.leaves_:
+                out[rows] = node.index
+            if not children[node.index] or rows.size == 0:
+                continue
+            positions = self._child_positions(
+                node.bounds, coordinates[rows], children[node.index]
+            )
+            for position, child in children[node.index].items():
+                stack.append((child, rows[positions == position]))
         return out
 
     def decision_function(self, X, coordinates):
@@ -603,6 +622,14 @@ class QuadtreeBoostingClassifier(SpatialIndexBoostingClassifier):
         ]
         return [(child_bounds[i], labels == i) for i in range(4)]
 
+    def _child_positions(self, bounds, coordinates, children):
+        """Returns the child position of each point by the midpoint rule in `_children`."""
+        min_x, min_y, max_x, max_y = bounds
+        mid_x = min_x + (max_x - min_x) / 2
+        mid_y = min_y + (max_y - min_y) / 2
+        return (coordinates[:, 0] <= mid_x).astype(int) + \
+               (coordinates[:, 1] <= mid_y).astype(int) * 2
+
 
 class KDTreeBoostingClassifier(SpatialIndexBoostingClassifier):
     """
@@ -642,3 +669,16 @@ class KDTreeBoostingClassifier(SpatialIndexBoostingClassifier):
             child_bounds = [[min_x, min_y, max_x, mid],
                             [min_x, mid, max_x, max_y]]
         return [(child_bounds[i], labels == i) for i in range(2)]
+
+    def _child_positions(self, bounds, coordinates, children):
+        """
+        Returns the child position of each point by the plane rule in `_children`.
+
+        The plane is the upper edge of child 0 or the lower edge of child 1
+        on the split axis. A point on the plane goes to child 0.
+        """
+        min_x, min_y, max_x, max_y = bounds
+        axis = 0 if abs(max_x - min_x) > abs(max_y - min_y) else 1
+        position, child = next(iter(children.items()))
+        mid = child.bounds[2 + axis] if position == 0 else child.bounds[axis]
+        return (coordinates[:, axis] > mid).astype(int)

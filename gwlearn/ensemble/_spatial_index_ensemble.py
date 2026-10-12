@@ -294,27 +294,31 @@ class SpatialIndexEnsemble:
         """
         Return the leaf index for each point (deepest matching leaf, -1 if
         outside bounds).
+
+        Each point descends from the root by the rule that assigned training
+        rows to children during the fit, so a point on a split line or plane
+        gets the same leaf as a training row at that location.
         """
         coordinates = numpy.asarray(coordinates)
-        leaf_names = list(self.leaves_.keys())
-        depthsort = numpy.argsort(
-            [leaf.depth for leaf in self.leaves_.values()]
-        )[::-1]
-        leaves_by_depth = {
-            leaf_names[i]: self.leaves_[leaf_names[i]] for i in depthsort
-        }
-        query_result = pandas.concat(
-            [
-                pandas.Series(
-                    pandas.arrays.SparseArray(leaf.query(coordinates)),
-                    name=leaf.index,
-                )
-                for leaf in leaves_by_depth.values()
-            ],
-            axis=1,
-        )
-        query_result.loc[:, -1] = True
-        return query_result.columns[query_result.values.argmax(axis=1)].values
+        children = defaultdict(dict)
+        for level in self.levels_.values():
+            for cell in level:
+                if cell.parent is not None:
+                    children[cell.parent][cell.index - cell.parent * 10 - 1] = cell
+
+        root = self.levels_[0][0]
+        labels = numpy.full(len(coordinates), -1, dtype=object)
+        stack = [(root, numpy.flatnonzero(root.query(coordinates)))]
+        while stack:
+            cell, rows = stack.pop()
+            if cell.index in self.leaves_:
+                labels[rows] = cell.index
+            if not children[cell.index] or rows.size == 0:
+                continue
+            positions = cell._child_positions(coordinates[rows], children[cell.index])
+            for position, child in children[cell.index].items():
+                stack.append((child, rows[positions == position]))
+        return labels
 
     def _update_leaf(self, cell):
         self.labels_[cell.ids] = cell.index

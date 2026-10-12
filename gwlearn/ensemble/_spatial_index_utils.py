@@ -143,6 +143,18 @@ class _Cell:
         return children
 
 
+    def _child_positions(self, coordinates, children):
+        """
+        Returns the position of the child that holds each point.
+
+        Applies the midpoint rule from `split`, so a point on a midpoint line
+        goes to the child below or to the left of the line. `children` maps
+        each child position to its cell.
+        """
+        min_x, min_y, max_x, max_y = self.bounds
+        mid_x, mid_y = min_x + (max_x - min_x) / 2, min_y + (max_y - min_y) / 2
+        return (coordinates[:, 0] <= mid_x) + (coordinates[:, 1] <= mid_y) * 2
+
     def query(self, coordinates):
         """
         Query a cell to determine if coordinates in the input
@@ -156,6 +168,19 @@ class _Cell:
 
 
 class _Node(_Cell):
+    def _child_positions(self, coordinates, children):
+        """
+        Returns the position of the child that holds each point.
+
+        Recovers the plane from the children's bounds and applies the rule
+        from `_split_by_plane`, so a point on the plane goes to child 0.
+        `children` maps each child position to its cell.
+        """
+        low, high = children[0].bounds, children[1].bounds
+        if high[0] == low[2]:
+            return (coordinates[:, 0] > low[2]).astype(int)
+        return (coordinates[:, 1] > low[3]).astype(int)
+
     def _split_by_plane(self, plane, boost=False):
         min_x, min_y, max_x, max_y = self.bounds
         if plane[0][0] == plane[1][0]: # vertical, left-right split
