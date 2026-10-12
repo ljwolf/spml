@@ -13,6 +13,7 @@ installation
 introduction
 linear
 ensemble
+pruning
 predict
 imbalance
 bandwidth_search
