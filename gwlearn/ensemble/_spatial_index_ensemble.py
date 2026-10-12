@@ -202,7 +202,7 @@ class SpatialIndexEnsemble:
 
         self.levels_ = defaultdict(list)
         self.levels_[0].append(root)
-        self.labels_ = numpy.zeros(len(y))
+        self.labels_ = numpy.full(len(y), 0, dtype=object)
         self.prediction_ = root.prediction_.copy()
         self.leaves_ = {}
 

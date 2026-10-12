@@ -535,7 +535,7 @@ class SpatialIndexBoostingClassifier:
     def _query(self, coordinates):
         coordinates = numpy.asarray(coordinates)
         leaves   = sorted(self.leaves_.values(), key=lambda n: n.depth, reverse=True)
-        out      = numpy.full(len(coordinates), -1)
+        out      = numpy.full(len(coordinates), -1, dtype=object)
         assigned = numpy.zeros(len(coordinates), dtype=bool)
         for leaf in leaves:
             hit = leaf.query(coordinates) & (~assigned)

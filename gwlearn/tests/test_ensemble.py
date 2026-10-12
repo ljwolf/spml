@@ -7,6 +7,8 @@ from gwlearn.ensemble import (
     GWRandomForestClassifier,
     GWRandomForestRegressor,
     KDTreeEnsembleRegressor,
+    QuadtreeBoostingClassifier,
+    QuadtreeEnsembleRegressor,
     SpatialTreeRegressor,
 )
 
@@ -299,3 +301,50 @@ def test_gwgb_regressor_fit_basic(sample_regression_data):  # noqa: F811
     assert not hasattr(model, "aic_")
     assert not hasattr(model, "aicc_")
     assert not hasattr(model, "bic_")
+
+
+def _deep_quadtree_data():
+    """Points where a tight cluster forces the quadtree about 30 levels deep."""
+    rng = np.random.default_rng(0)
+    coords = np.vstack(
+        [rng.uniform(0, 1e-9, size=(40, 2)), rng.uniform(0.5, 1, size=(40, 2))]
+    )
+    X = rng.normal(size=(80, 1))
+    return rng, X, coords
+
+
+def test_quadtree_deep_leaf_labels_are_exact():
+    """Leaf labels stay distinct when path codes exceed float64 precision."""
+    rng, X, coords = _deep_quadtree_data()
+    y = rng.normal(size=80)
+    model = QuadtreeEnsembleRegressor(
+        split_tolerance=-np.inf, min_leaf_size=2, pbar=False
+    ).fit(X, y, coords)
+
+    assert max(leaf.depth for leaf in model.leaves_.values()) > 20
+
+    expected = np.empty(len(y), dtype=object)
+    for leaf in model.leaves_.values():
+        expected[leaf.ids] = leaf.index
+    assert model.labels_.tolist() == expected.tolist()
+
+    assert len(set(model.labels_.tolist())) > 16  # float64 collapsed these to 16
+
+    # routing training points reproduces their fitted leaves and predictions
+    assert model.query(coords).tolist() == model.labels_.tolist()
+    np.testing.assert_allclose(model.predict(X, coords), model.prediction_)
+
+
+def test_quadtree_boosting_classifier_deep_leaf_labels():
+    """Routing doesn't overflow when path codes exceed int64."""
+    rng, X, coords = _deep_quadtree_data()
+    y = rng.integers(0, 2, size=80)
+    model = QuadtreeBoostingClassifier(
+        split_tolerance=-np.inf, min_leaf_size=2, max_depth=60, pbar=False
+    ).fit(X, y, coords)
+
+    assert max(leaf.depth for leaf in model.leaves_.values()) > 20
+
+    labels = model._query(coords)
+    assert set(labels.tolist()) <= set(model.leaves_)
+    assert model.predict(X, coords).shape == (80,)
