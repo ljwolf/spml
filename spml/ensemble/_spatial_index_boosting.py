@@ -131,7 +131,7 @@ class KDTreeBoostingRegressor(SpatialIndexBoosting, KDTreeEnsemble):
     """
 
     def _candidate_splits(self, cell):
-        if self.split_method == "optimal":
+        if self.split_method in ("optimal", "scan"):
             splits = cell.split(boost=True, min_leaf_size=self.min_leaf_size)
         else:
             splits = cell.split(boost=True)

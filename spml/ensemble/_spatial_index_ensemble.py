@@ -7,6 +7,7 @@ that leaf's model prediction. Works with any scikit-learn compatible
 estimator.
 """
 
+import warnings
 import numpy, pandas, geopandas, shapely
 from collections import defaultdict
 from sklearn import linear_model, metrics
@@ -18,13 +19,12 @@ from ._spatial_index_utils import (
     _WeightedMedianSplitNode,
     _RandomSplitNode,
     _OptimalSplitNode,
+    _ScanSplitNode,
+    _neg_mean_squared_error,
+    _scan_is_exact,
+    _SCAN_GRID_SIZE,
 )
 from ._spatial_tree_ensemble import _holds_out, _leaf_split
-
-
-def _neg_mean_squared_error(y_true, y_pred):
-    """Default split score. Module-level (not a closure) so fitted ensembles pickle."""
-    return -metrics.mean_squared_error(y_true, y_pred)
 
 
 class SpatialIndexEnsemble:
@@ -354,6 +354,10 @@ class KDTreeEnsemble(SpatialIndexEnsemble):
         - 'median': split at the coordinate median
         - 'weighted': split at the residual-weighted median
         - 'optimal': minimize loss over the split location
+        - 'scan': search every split location that leaves both children
+          larger than `min_leaf_size`, and take the one with the lowest summed
+          child loss. Exact for an intercept LinearRegression scored by mean
+          squared error; otherwise, refits children at a grid of locations.
         - int/float: split at the median of a random subsample of this size
     """
 
@@ -370,11 +374,25 @@ class KDTreeEnsemble(SpatialIndexEnsemble):
             return _RandomSplitNode(*args, **kwargs)
         elif self.split_method == "optimal":
             return _OptimalSplitNode(*args, **kwargs)
+        elif self.split_method == "scan":
+            return _ScanSplitNode(*args, **kwargs)
         else:
             raise ValueError(f"Unknown split_method: {self.split_method!r}")
 
+    def fit(self, X, y, coordinates):
+        if self.split_method == "scan" and not _scan_is_exact(
+            self.model, self._score_function
+        ):
+            warnings.warn(
+                "split_method='scan' is exact only for an intercept "
+                "LinearRegression scored by mean squared error. Each split "
+                f"refits children at up to {_SCAN_GRID_SIZE} locations instead.",
+                stacklevel=2,
+            )
+        return super().fit(X, y, coordinates)
+
     def _candidate_splits(self, cell):
-        if self.split_method == "optimal":
+        if self.split_method in ("optimal", "scan"):
             splits = cell.split(min_leaf_size=self.min_leaf_size)
         else:
             splits = cell.split()

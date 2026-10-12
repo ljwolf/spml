@@ -1,5 +1,6 @@
 import warnings, numpy, pandas
 from scipy import optimize
+from sklearn import linear_model, metrics
 from sklearn.base import clone, is_classifier
 
 class _Cell:
@@ -316,6 +317,97 @@ class _OptimalSplitNode(_Node):
 
             plane = [(min_x, mid_y), (max_x, mid_y)]
         return self._split_by_plane(plane, boost=boost)
+
+_SCAN_GRID_SIZE = 50
+
+
+def _neg_mean_squared_error(y_true, y_pred):
+    """Default split score. Module-level (not a closure) so fitted ensembles pickle."""
+    return -metrics.mean_squared_error(y_true, y_pred)
+
+
+def _scan_is_exact(model, score_function):
+    """True if the scan can use the exact OLS prefix-sum path; false otherwise."""
+    return (
+        type(model) is linear_model.LinearRegression
+        and getattr(model, "fit_intercept", True)
+        and not getattr(model, "positive", False)
+        and score_function is _neg_mean_squared_error
+    )
+
+
+class _ScanSplitNode(_Node):
+    def split(self, boost=False, min_leaf_size=10):
+        """
+        Split the longer axis at the admissible plane with the lowest summed
+        child loss.
+
+        A plane is admissible if both children hold more than `min_leaf_size`
+        observations. Planes fall midway between distinct sorted coordinates,
+        so tied coordinates always stay on the same side. For an intercept OLS
+        model scored by mean squared error, every admissible plane is scored
+        exactly from prefix sums of the normal equations. For any other model
+        or score, `_SCAN_GRID_SIZE` admissible planes, evenly spaced in rank,
+        are scored by refitting the children. If no plane is admissible, the
+        cell splits at its coordinate median, and the size floor rejects the
+        split.
+        """
+        min_x, min_y, max_x, max_y = self.bounds
+        axis = 0 if abs(max_x - min_x) > abs(max_y - min_y) else 1
+        order = numpy.argsort(self.coordinates[:, axis], kind="stable")
+        values = self.coordinates[order, axis]
+
+        # k = number of points left of the plane, between values[k-1] and values[k]
+        m = min_leaf_size + 1
+        k = numpy.arange(m, self.size - m + 1)
+        k = k[values[k - 1] < values[k]]
+
+        if k.size == 0:
+            threshold = numpy.median(values)
+        elif _scan_is_exact(self._model, self._score_function):
+            y = self.residuals_ if boost else self.y
+            k_best = k[numpy.argmin(self._ols_split_rss(order, y, k))]
+            threshold = (values[k_best - 1] + values[k_best]) / 2
+        else:
+            grid = k[numpy.unique(
+                numpy.linspace(0, k.size - 1, min(_SCAN_GRID_SIZE, k.size)).round()
+            ).astype(int)]
+            thresholds = (values[grid - 1] + values[grid]) / 2
+            losses = [
+                self._refit_split_loss(self._plane(axis, t), boost)
+                for t in thresholds
+            ]
+            threshold = thresholds[numpy.argmin(losses)]
+        return self._split_by_plane(self._plane(axis, threshold), boost=boost)
+
+    def _plane(self, axis, threshold):
+        min_x, min_y, max_x, max_y = self.bounds
+        if axis == 0:
+            return [(threshold, min_y), (threshold, max_y)]
+        return [(min_x, threshold), (max_x, threshold)]
+
+    def _ols_split_rss(self, order, y, k):
+        """Summed OLS residual sum of squares of both children for each left size k."""
+        # centering leaves each child's intercept-OLS residuals unchanged
+        X = self.X[order] - self.X.mean(axis=0)
+        y = y[order] - y.mean()
+        Z = numpy.column_stack([numpy.ones(len(y)), X])
+        ZZ = numpy.cumsum(Z[:, :, None] * Z[:, None, :], axis=0)
+        Zy = numpy.cumsum(Z * y[:, None], axis=0)
+        yy = numpy.cumsum(y * y)
+
+        def rss(ZZ_k, Zy_k, yy_k):
+            beta = numpy.einsum("kij,kj->ki", numpy.linalg.pinv(ZZ_k), Zy_k)
+            return yy_k - numpy.einsum("ki,ki->k", Zy_k, beta)
+
+        left = rss(ZZ[k - 1], Zy[k - 1], yy[k - 1])
+        right = rss(ZZ[-1] - ZZ[k - 1], Zy[-1] - Zy[k - 1], yy[-1] - yy[k - 1])
+        return left + right
+
+    def _refit_split_loss(self, plane, boost):
+        left, right = self._split_by_plane(plane, boost=boost)
+        return -(left.size * left.score_ + right.size * right.score_)
+
 
 def weighted_median(x, weights):
     x = numpy.asarray(x).ravel()
